@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+
+  /* Header / brand blue */
+  --color-header: #2b7bc4;
+  --color-header-dark: #23649e;
+  --color-primary-50: #eaf3fb;
+  --color-primary-100: #d3e6f6;
+  --color-primary-500: #2b7bc4;
+  --color-primary-600: #23649e;
+  --color-primary-700: #1c5280;
+
+  /* App shell */
+  --color-sidebar: #eef0f2;
+  --color-sidebar-border: #dde1e4;
+  --color-sidebar-icon: #5b6670;
+  --color-sidebar-icon-active: #2b7bc4;
+  --color-appbg: #f2f3f5;
+
+  /* Login */
+  --color-navy: #0a0938;
+  --color-navy-light: #14124f;
+
+  /* Module accent colors */
+  --color-module-attendance: #7cb342;
+  --color-module-attendance-dark: #689635;
+  --color-module-eip: #2b7bc4;
+  --color-module-eip-dark: #23649e;
+  --color-module-exit: #e05252;
+  --color-module-exit-dark: #c94343;
+  --color-module-manager: #f0ad4e;
+  --color-module-manager-dark: #d99a3e;
+  --color-module-admin: #546a7b;
+  --color-module-admin-dark: #435663;
+
+  /* Dashboard cards */
+  --color-card-ess: #7cb342;
+  --color-card-ess-dark: #689635;
+  --color-card-mss: #2b7bc4;
+  --color-card-mss-dark: #23649e;
+  --color-card-info: #8b7cc0;
+  --color-card-info-dark: #7565ae;
+
+  /* Status colors */
+  --color-status-present: #4caf50;
+  --color-status-absent: #c1712e;
+  --color-status-weekoff: #3f7a91;
+  --color-status-holiday: #2f6f7a;
+  --color-status-late: #e08a3c;
+  --color-status-early: #e08a3c;
+  --color-status-leave: #7c6bb0;
+  --color-status-regularized: #8b7cc0;
+  --color-status-pending: #f0ad4e;
+  --color-status-approved: #4caf50;
+  --color-status-rejected: #e05252;
+  --color-status-cancelled: #9aa0a6;
+  --color-status-draft: #9aa0a6;
+
+  /* Table */
+  --color-table-header: #eaf2f9;
+  --color-table-border: #cfe0ee;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    background: var(--color-appbg);
+    color: #24292e;
+    font-size: 13px;
+  }
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #c2c9d1;
+    border-radius: 4px;
+  }
+}
