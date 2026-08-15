@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/auth/useAuth';
-import { useCreatePermissionRequest } from '@/hooks/useRequestQueries';
+import { useCreatePermissionRequest, usePermissionRequests } from '@/hooks/useRequestQueries';
 import { Field, inputClass } from './LeaveRequestForm';
 import { ORG_ID } from '@/lib/orgContext';
+import { validatePermissionRequest } from '@/lib/permissionValidation';
 
 const schema = z
   .object({
@@ -25,6 +27,8 @@ function toMinutes(t: string): number {
 export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: string; onDone: () => void }) {
   const { authSession } = useAuth();
   const createPermission = useCreatePermissionRequest();
+  const { data: existingRequests } = usePermissionRequests(authSession?.employee.id, authSession?.employee.displayName ?? '');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const {
     register,
@@ -41,6 +45,24 @@ export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: s
 
   async function onSubmit(values: FormValues) {
     if (!authSession) return;
+    setValidationErrors([]);
+
+    const { valid, errors: ruleErrors } = validatePermissionRequest({
+      permissionDate: values.permissionDate,
+      fromTime: values.fromTime,
+      toTime: values.toTime,
+      existingRequests: (existingRequests ?? []).map((r) => ({
+        permissionDate: r.permissionDate,
+        fromTime: r.fromTime,
+        toTime: r.toTime,
+        status: r.status,
+      })),
+    });
+    if (!valid) {
+      setValidationErrors(ruleErrors);
+      return;
+    }
+
     await createPermission.mutateAsync({
       organizationId: ORG_ID,
       employeeId: authSession.employee.id,
@@ -77,6 +99,13 @@ export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: s
         <textarea {...register('reason')} rows={3} className={inputClass} />
       </Field>
 
+      {validationErrors.length > 0 && (
+        <ul className="list-disc space-y-1 rounded bg-status-rejected/10 px-3 py-2 pl-6 text-status-rejected">
+          {validationErrors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
       {createPermission.isError && (
         <p className="rounded bg-status-rejected/10 px-3 py-2 text-status-rejected">
           {(createPermission.error as Error).message}

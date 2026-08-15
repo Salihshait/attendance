@@ -10,9 +10,6 @@ export function calculateExpectedLastWorkingDate(resignationDate: string, notice
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export type ExitDepartment = 'manager' | 'hr' | 'it' | 'finance' | 'admin';
-export const EXIT_CLEARANCE_DEPARTMENTS: ExitDepartment[] = ['manager', 'hr', 'it', 'finance', 'admin'];
-
 export type ClearanceStatus = 'pending' | 'cleared' | 'rejected';
 
 /** A resignation is fully cleared once every department clearance row is 'cleared'. */

@@ -3,6 +3,7 @@ import { Check, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useActOnExitClearance } from '@/hooks/useExitQueries';
 import { Modal } from '@/components/ui/Modal';
+import { clearanceProgress, isFullyCleared } from '@/lib/exitCalc';
 import type { ExitClearanceRow } from '@/types/exit';
 
 const DEPARTMENT_LABELS: Record<ExitClearanceRow['department'], string> = {
@@ -51,8 +52,22 @@ export function ClearanceTimeline({
     return <p className="px-3 py-6 text-center text-xs text-slate-400">Clearance has not started yet — it opens once HR approves the resignation.</p>;
   }
 
+  const statuses = clearances.map((c) => c.status);
+  const progress = clearanceProgress(statuses);
+  const fullyCleared = isFullyCleared(statuses);
+
   return (
     <>
+    <div className="mb-3 flex items-center justify-between text-xs">
+      <span className="font-semibold text-slate-600">
+        {progress.cleared} of {progress.total} departments cleared
+      </span>
+      {fullyCleared && (
+        <span className="flex items-center gap-1 rounded bg-status-approved/15 px-2 py-0.5 font-semibold text-status-approved">
+          <Check className="h-3 w-3" /> Fully Cleared
+        </span>
+      )}
+    </div>
     <ol className="space-y-2">
       {clearances.map((c) => {
         const Icon = STATUS_ICONS[c.status];

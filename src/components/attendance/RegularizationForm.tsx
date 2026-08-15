@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/auth/useAuth';
-import { useCreateRegularization } from '@/hooks/useRequestQueries';
+import { useCreateRegularization, useRegularizations } from '@/hooks/useRequestQueries';
 import { useAttendanceDay } from '@/hooks/useAttendanceQueries';
 import { formatClockTime, formatHoursMinutes } from '@/lib/dateFormat';
 import { normalizedPunchMinutes, parseClockToMinutes } from '@/lib/attendanceCalc';
@@ -31,6 +32,8 @@ type FormValues = z.infer<typeof schema>;
 export function RegularizationForm({ defaultDate, onDone }: { defaultDate?: string; onDone: () => void }) {
   const { authSession } = useAuth();
   const createRegularization = useCreateRegularization();
+  const { data: existingRegularizations } = useRegularizations(authSession?.employee.id);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const {
     register,
@@ -56,7 +59,17 @@ export function RegularizationForm({ defaultDate, onDone }: { defaultDate?: stri
 
   async function onSubmit(values: FormValues) {
     if (!authSession) return;
+    setValidationError(null);
     const dt = values.attendanceDate;
+
+    const hasActiveDuplicate = (existingRegularizations ?? []).some(
+      (r) => r.attendanceDate === dt && (r.status === 'draft' || r.status === 'pending'),
+    );
+    if (hasActiveDuplicate) {
+      setValidationError('You already have a pending regularization request for this date.');
+      return;
+    }
+
     await createRegularization.mutateAsync({
       organizationId: ORG_ID,
       employeeId: authSession.employee.id,
@@ -126,6 +139,9 @@ export function RegularizationForm({ defaultDate, onDone }: { defaultDate?: stri
         <textarea {...register('reason')} rows={3} className={inputClass} />
       </Field>
 
+      {validationError && (
+        <p className="rounded bg-status-rejected/10 px-3 py-2 text-status-rejected">{validationError}</p>
+      )}
       {createRegularization.isError && (
         <p className="rounded bg-status-rejected/10 px-3 py-2 text-status-rejected">
           {(createRegularization.error as Error).message}
