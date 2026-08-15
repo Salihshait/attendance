@@ -98,23 +98,27 @@ export function Sidebar({
 
                 {isOpen && expanded && mod.columns && (
                   <div className="ml-4 mt-0.5 space-y-2 border-l border-sidebar-border pb-2 pl-3">
-                    {mod.columns.map((col) => (
-                      <div key={col.heading}>
-                        <p className="mb-1 text-[11px] font-semibold text-slate-500">{col.heading}</p>
-                        <ul className="space-y-1">
-                          {col.items.map((item) => (
-                            <li key={item.path}>
-                              <Link
-                                to={item.path}
-                                className="text-xs text-slate-600 hover:text-primary-500 hover:underline"
-                              >
-                                {item.label}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                    {mod.columns.map((col) => {
+                      const visibleItems = col.items.filter((item) => !item.roles || item.roles.some((r) => roles.includes(r)));
+                      if (visibleItems.length === 0) return null;
+                      return (
+                        <div key={col.heading}>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">{col.heading}</p>
+                          <ul className="space-y-1">
+                            {visibleItems.map((item) => (
+                              <li key={item.path}>
+                                <Link
+                                  to={item.path}
+                                  className="text-xs text-slate-600 hover:text-primary-500 hover:underline"
+                                >
+                                  {item.label}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </li>

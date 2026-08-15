@@ -3,6 +3,10 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import type { NavModule } from '@/config/navigation';
+import { useAuth } from '@/auth/useAuth';
+import type { AppRole } from '@/config/app.config';
+
+const DEFAULT_ROLES: AppRole[] = ['employee'];
 
 export function ModuleMegaMenu({
   module,
@@ -19,6 +23,8 @@ export function ModuleMegaMenu({
 }) {
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
+  const { authSession } = useAuth();
+  const roles = authSession?.employee.roles ?? DEFAULT_ROLES;
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -29,12 +35,14 @@ export function ModuleMegaMenu({
   }, [onClose]);
 
   const columns = useMemo(() => {
-    if (!query.trim()) return module.columns ?? [];
     const q = query.trim().toLowerCase();
     return (module.columns ?? [])
-      .map((col) => ({ ...col, items: col.items.filter((i) => i.label.toLowerCase().includes(q)) }))
+      .map((col) => ({
+        ...col,
+        items: col.items.filter((i) => (!i.roles || i.roles.some((r) => roles.includes(r))) && (!q || i.label.toLowerCase().includes(q))),
+      }))
       .filter((col) => col.items.length > 0);
-  }, [module.columns, query]);
+  }, [module.columns, query, roles]);
 
   const style: React.CSSProperties =
     placement === 'right'

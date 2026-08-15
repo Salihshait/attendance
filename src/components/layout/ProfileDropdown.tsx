@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Settings, KeyRound, UserCircle, Undo2, LogOut } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { initialsFromName } from '@/lib/utils';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 export function ProfileDropdown() {
   const { authSession, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,7 +48,14 @@ export function ProfileDropdown() {
       {open && (
         <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-md border border-slate-200 bg-white py-1 text-slate-700 shadow-lg">
           <MenuItem icon={Settings} label="Card Settings" onClick={() => setOpen(false)} />
-          <MenuItem icon={KeyRound} label="Change Password" onClick={() => setOpen(false)} />
+          <MenuItem
+            icon={KeyRound}
+            label="Change Password"
+            onClick={() => {
+              setOpen(false);
+              setChangePasswordOpen(true);
+            }}
+          />
           <MenuItem icon={UserCircle} label="User Account" onClick={() => setOpen(false)} />
           <div className="my-1 border-t border-slate-100" />
           <MenuItem icon={Undo2} label="Back to old version" onClick={() => setOpen(false)} />
@@ -54,6 +63,8 @@ export function ProfileDropdown() {
           <MenuItem icon={LogOut} label="Logout" onClick={handleLogout} />
         </div>
       )}
+
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
     </div>
   );
 }

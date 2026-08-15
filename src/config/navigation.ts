@@ -13,6 +13,8 @@ import type { AppRole } from './app.config';
 export interface NavLeaf {
   label: string;
   path: string;
+  /** Roles allowed to see this specific link. Omit = visible to everyone who can see the parent module. */
+  roles?: AppRole[];
 }
 
 export interface NavColumn {
@@ -33,13 +35,6 @@ export interface NavModule {
   color?: ModuleColor;
   /** Roles allowed to see this sidebar entry. Omit = all roles. */
   roles?: AppRole[];
-}
-
-/** Holiday List policy years are generated dynamically, never hardcoded. */
-function holidayPolicyYears(): NavLeaf[] {
-  const currentYear = new Date().getFullYear();
-  const years = [currentYear - 4, currentYear - 3, currentYear - 1, currentYear];
-  return years.map((y) => ({ label: `Holiday List - ${y}`, path: `/eip/policies/${y}` }));
 }
 
 export const sidebarModules: NavModule[] = [
@@ -99,7 +94,7 @@ export const sidebarModules: NavModule[] = [
           { label: 'Tax Declaration', path: '/eip/tax-declaration' },
         ],
       },
-      { heading: 'Policies', items: holidayPolicyYears() },
+      { heading: 'Policies', items: [{ label: 'Policies', path: '/eip/policies' }] },
     ],
   },
   {
@@ -116,6 +111,10 @@ export const sidebarModules: NavModule[] = [
           { label: 'Exit Interview', path: '/exit/interview' },
         ],
       },
+      {
+        heading: 'Management',
+        items: [{ label: 'Manage Resignations', path: '/exit/manage', roles: ['manager', 'hr_admin', 'super_admin'] }],
+      },
     ],
   },
   {
@@ -131,6 +130,8 @@ export const sidebarModules: NavModule[] = [
           { label: 'Dashboard', path: '/manager/dashboard' },
           { label: 'Pending Approvals', path: '/manager/approvals' },
           { label: 'Team Attendance', path: '/manager/team-attendance' },
+          { label: 'Team Leave', path: '/manager/team-leave' },
+          { label: 'Team Reports', path: '/manager/team-reports' },
         ],
       },
     ],
@@ -149,13 +150,16 @@ export const sidebarModules: NavModule[] = [
           { label: 'Departments', path: '/admin/departments' },
           { label: 'Designations', path: '/admin/designations' },
           { label: 'Locations', path: '/admin/locations' },
+          { label: 'Grades', path: '/admin/grades' },
         ],
       },
       {
         heading: 'Configuration',
         items: [
           { label: 'Shifts', path: '/admin/shifts' },
+          { label: 'Attendance Rules', path: '/admin/attendance-rules' },
           { label: 'Leave Types', path: '/admin/leave-types' },
+          { label: 'Leave Policies', path: '/admin/leave-policies' },
           { label: 'Holidays', path: '/admin/holidays' },
           { label: 'Approval Workflows', path: '/admin/workflows' },
         ],
@@ -163,8 +167,12 @@ export const sidebarModules: NavModule[] = [
       {
         heading: 'Insights',
         items: [
+          { label: 'Documents', path: '/admin/documents' },
+          { label: 'Payroll', path: '/admin/payroll' },
           { label: 'Reports', path: '/admin/reports' },
+          { label: 'Notifications', path: '/admin/notifications' },
           { label: 'Audit Logs', path: '/admin/audit-logs' },
+          { label: 'System Settings', path: '/admin/system-settings', roles: ['super_admin'] },
         ],
       },
     ],

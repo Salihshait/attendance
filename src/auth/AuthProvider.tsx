@@ -19,6 +19,8 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   setActiveRole: (role: AppRole) => void;
   isDemoMode: boolean;
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -28,10 +30,10 @@ async function loadEmployeeProfile(supabaseUserId: string, email: string): Promi
     .from('employees')
     .select(
       `id, employee_code, first_name, middle_name, last_name, gender, photo_url,
-       official_email, official_mobile, date_of_joining,
+       official_email, official_mobile, date_of_joining, reporting_manager_id,
+       paygroup, father_name, date_of_birth, cost_centre, place_of_tax_deduction, job_responsibility,
        department:departments(name), designation:designations(name),
-       location:locations(name), grade:grades(name),
-       reporting_manager:employees!employees_reporting_manager_id_fkey(first_name, last_name)`,
+       location:locations(name), grade:grades(name)`,
     )
     .eq('user_id', supabaseUserId)
     .maybeSingle();
@@ -51,9 +53,20 @@ async function loadEmployeeProfile(supabaseUserId: string, email: string): Promi
   const desig = employee.designation as unknown as { name: string } | null;
   const loc = employee.location as unknown as { name: string } | null;
   const grade = employee.grade as unknown as { name: string } | null;
-  const manager = employee.reporting_manager as unknown as
-    | { first_name: string; last_name: string | null }
-    | null;
+
+  // Fetched separately rather than as an embedded PostgREST resource:
+  // self-referencing FK embeds are direction-ambiguous and depend on RLS
+  // granting access to the *joined* row too — a plain follow-up query is
+  // both simpler and more reliable.
+  let reportingManagerName: string | null = null;
+  if (employee.reporting_manager_id) {
+    const { data: manager } = await supabase
+      .from('employees')
+      .select('first_name, last_name')
+      .eq('id', employee.reporting_manager_id)
+      .maybeSingle();
+    if (manager) reportingManagerName = [manager.first_name, manager.last_name].filter(Boolean).join(' ');
+  }
 
   return {
     id: employee.id,
@@ -71,8 +84,15 @@ async function loadEmployeeProfile(supabaseUserId: string, email: string): Promi
     designationName: desig?.name ?? '-',
     locationName: loc?.name ?? '-',
     gradeName: grade?.name ?? null,
-    reportingManagerName: manager ? [manager.first_name, manager.last_name].filter(Boolean).join(' ') : null,
+    reportingManagerId: employee.reporting_manager_id,
+    reportingManagerName,
     dateOfJoining: employee.date_of_joining,
+    paygroup: employee.paygroup,
+    fatherName: employee.father_name,
+    dateOfBirth: employee.date_of_birth,
+    costCentre: employee.cost_centre,
+    placeOfTaxDeduction: employee.place_of_tax_deduction,
+    jobResponsibility: employee.job_responsibility,
     roles: roles.length > 0 ? roles : ['employee'],
   };
 }
@@ -152,8 +172,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // The login field accepts an employee code (matching the reference
+      // app's UX) or a plain email — Supabase Auth only ever signs in by
+      // email, so resolve a non-email username via the RPC first.
+      let email = username.trim();
+      if (!email.includes('@')) {
+        const { data: resolved } = await supabase.rpc('resolve_login_email', { _username: email });
+        if (resolved) email = resolved;
+      }
+
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: username,
+        email,
         password,
       });
       if (signInError || !data.user) {
@@ -184,6 +213,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthSessionState((prev) => (prev ? { ...prev, activeRole: role } : prev));
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    if (!isSupabaseConfigured) {
+      return { error: 'Password reset is not available in demo mode.' };
+    }
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return { error: resetError?.message ?? null };
+  }, []);
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!isSupabaseConfigured) {
+        return { error: 'Password change is not available in demo mode.' };
+      }
+      if (!authSession?.email) {
+        return { error: 'No active session.' };
+      }
+      // Supabase's updateUser() does not verify the caller's current
+      // password, so we re-authenticate with it first to make sure this
+      // is really the account owner before accepting the new one.
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: authSession.email,
+        password: currentPassword,
+      });
+      if (verifyError) {
+        return { error: 'Current password is incorrect.' };
+      }
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      return { error: updateError?.message ?? null };
+    },
+    [authSession?.email],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       loading,
@@ -193,8 +256,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       setActiveRole,
       isDemoMode: !isSupabaseConfigured,
+      requestPasswordReset,
+      changePassword,
     }),
-    [loading, authSession, error, signIn, signOut, setActiveRole],
+    [loading, authSession, error, signIn, signOut, setActiveRole, requestPasswordReset, changePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

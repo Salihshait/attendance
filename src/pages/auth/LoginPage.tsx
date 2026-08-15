@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { LogIn, User, Lock } from 'lucide-react';
 import { appConfig } from '@/config/app.config';
 import { useAuth } from '@/auth/useAuth';
@@ -114,9 +114,9 @@ export default function LoginPage() {
               </button>
 
               <p className="text-center">
-                <a href="#" className="text-xs text-primary-500 hover:underline">
+                <Link to="/forgot-password" className="text-xs text-primary-500 hover:underline">
                   I forgot my password
-                </a>
+                </Link>
               </p>
             </form>
           </div>

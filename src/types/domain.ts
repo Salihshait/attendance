@@ -16,8 +16,15 @@ export interface EmployeeProfile {
   designationName: string;
   locationName: string;
   gradeName?: string | null;
+  reportingManagerId?: string | null;
   reportingManagerName?: string | null;
   dateOfJoining: string;
+  paygroup?: string | null;
+  fatherName?: string | null;
+  dateOfBirth?: string | null;
+  costCentre?: string | null;
+  placeOfTaxDeduction?: string | null;
+  jobResponsibility?: string | null;
   roles: AppRole[];
 }
 

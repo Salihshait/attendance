@@ -57,6 +57,8 @@
   --color-status-rejected: #e05252;
   --color-status-cancelled: #9aa0a6;
   --color-status-draft: #9aa0a6;
+  --color-status-active: #4caf50;
+  --color-status-inactive: #9aa0a6;
 
   /* Table */
   --color-table-header: #eaf2f9;

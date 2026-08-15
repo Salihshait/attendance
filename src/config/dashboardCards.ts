@@ -41,7 +41,7 @@ export const dashboardCards: DashboardCardConfig[] = [
     items: [
       { label: 'Team Attendance', path: '/manager/team-attendance' },
       { label: 'Pending Approvals', path: '/manager/approvals' },
-      { label: 'Team Reports', path: '/manager/dashboard' },
+      { label: 'Team Reports', path: '/manager/team-reports' },
     ],
   },
   {
