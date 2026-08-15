@@ -205,7 +205,7 @@ begin
         day_status = 'present',
         validation_status = 'completed',
         is_regularized = true,
-        remarks = excluded.remarks;
+        remarks = coalesce(excluded.remarks, public.attendance.remarks);
     end if;
   end if;
 

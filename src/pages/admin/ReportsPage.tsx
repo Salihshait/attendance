@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { FileDown, FileSpreadsheet, FileText } from 'lucide-react';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
@@ -217,18 +217,21 @@ export default function ReportsPage() {
   );
   const departmentByEmployee = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e.departmentId])), [employees]);
 
-  function matchesFilters(employeeId: string): boolean {
-    if (employeeFilter !== 'all' && employeeId !== employeeFilter) return false;
-    if (departmentFilter !== 'all' && departmentByEmployee.get(employeeId) !== departmentFilter) return false;
-    return true;
-  }
+  const matchesFilters = useCallback(
+    (employeeId: string): boolean => {
+      if (employeeFilter !== 'all' && employeeId !== employeeFilter) return false;
+      if (departmentFilter !== 'all' && departmentByEmployee.get(employeeId) !== departmentFilter) return false;
+      return true;
+    },
+    [employeeFilter, departmentFilter, departmentByEmployee],
+  );
 
-  const filteredAttendance = useMemo(() => (attendanceRows ?? []).filter((r) => matchesFilters(r.employeeId)), [attendanceRows, employeeFilter, departmentFilter, departmentByEmployee]);
+  const filteredAttendance = useMemo(() => (attendanceRows ?? []).filter((r) => matchesFilters(r.employeeId)), [attendanceRows, matchesFilters]);
   const filteredLeave = useMemo(
     () => (leaveRows ?? []).filter((r) => matchesFilters(r.employeeId) && r.fromDate <= appliedRange.to && r.toDate >= appliedRange.from),
-    [leaveRows, employeeFilter, departmentFilter, departmentByEmployee, appliedRange],
+    [leaveRows, matchesFilters, appliedRange],
   );
-  const filteredPermission = useMemo(() => (permissionRows ?? []).filter((r) => matchesFilters(r.employeeId)), [permissionRows, employeeFilter, departmentFilter, departmentByEmployee]);
+  const filteredPermission = useMemo(() => (permissionRows ?? []).filter((r) => matchesFilters(r.employeeId)), [permissionRows, matchesFilters]);
 
   const report = useMemo(() => {
     switch (reportType) {
