@@ -32,7 +32,7 @@ async function loadEmployeeProfile(supabaseUserId: string, email: string): Promi
       `id, employee_code, first_name, middle_name, last_name, gender, photo_url,
        official_email, official_mobile, date_of_joining, reporting_manager_id,
        paygroup, father_name, date_of_birth, cost_centre, place_of_tax_deduction, job_responsibility,
-       department:departments(name), designation:designations(name),
+       department:departments!employees_department_id_fkey(name), designation:designations(name),
        location:locations(name), grade:grades(name)`,
     )
     .eq('user_id', supabaseUserId)

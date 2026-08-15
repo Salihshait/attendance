@@ -11,7 +11,7 @@ const EMPLOYEE_LIST_SELECT =
   'date_of_joining, date_of_leaving, official_email, official_mobile, paygroup, cost_centre, ' +
   'place_of_tax_deduction, job_responsibility, employment_type, employment_status, user_id, ' +
   'department_id, designation_id, location_id, grade_id, reporting_manager_id, ' +
-  'department:departments(name), designation:designations(name), location:locations(name), grade:grades(name)';
+  'department:departments!employees_department_id_fkey(name), designation:designations(name), location:locations(name), grade:grades(name)';
 
 function mapEmployeeRow(r: any, managerNameById: Map<string, string>): AdminEmployeeRow {
   return {

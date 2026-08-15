@@ -21,6 +21,54 @@
 -- This migration re-declares act_on_approval() in full (function body
 -- replacement is all-or-nothing) — everything below except the new
 -- "deduct leave balance" block is unchanged from 0028's version.
+--
+-- c) audit_row_change() (0030) resolves organization_id via
+--    current_organization_id(), which depends on auth.uid() — null for any
+--    write made outside an authenticated app session (this migration's own
+--    backfill below included). audit_logs.organization_id is not-null, so
+--    that trigger firing during a migration/admin-context write on any of
+--    the 19 audited tables would hard-fail the whole statement. Made
+--    non-fatal: skip the audit row (nothing meaningful to attribute it to)
+--    instead of raising.
+
+create or replace function public.audit_row_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  _row jsonb;
+  _org_id uuid;
+  _action text;
+  _record_id uuid;
+begin
+  _row := to_jsonb(coalesce(new, old));
+  _action := case TG_OP when 'INSERT' then 'create' when 'UPDATE' then 'update' when 'DELETE' then 'delete' end;
+  _record_id := case TG_OP when 'DELETE' then old.id else new.id end;
+  _org_id := case
+    when _row ? 'organization_id' and _row->>'organization_id' is not null then (_row->>'organization_id')::uuid
+    else public.current_organization_id()
+  end;
+
+  if _org_id is null then
+    return coalesce(new, old);
+  end if;
+
+  insert into public.audit_logs (organization_id, actor_user_id, action, module, record_id, old_value, new_value)
+  values (
+    _org_id,
+    auth.uid(),
+    _action,
+    TG_TABLE_NAME,
+    _record_id,
+    case when TG_OP <> 'INSERT' then to_jsonb(old) else null end,
+    case when TG_OP <> 'DELETE' then to_jsonb(new) else null end
+  );
+
+  return coalesce(new, old);
+end;
+$$;
 
 create extension if not exists btree_gist;
 

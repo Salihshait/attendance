@@ -18,7 +18,7 @@ export function useTeamMembers(managerId: string | undefined) {
     queryFn: async (): Promise<TeamMemberRow[]> => {
       const { data, error } = await supabase
         .from('employees')
-        .select('id, employee_code, first_name, last_name, employment_status, department:departments(name), designation:designations(name)')
+        .select('id, employee_code, first_name, last_name, employment_status, department:departments!employees_department_id_fkey(name), designation:designations(name)')
         .eq('reporting_manager_id', managerId)
         .order('first_name');
       if (error) throw error;
