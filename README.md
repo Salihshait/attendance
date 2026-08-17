@@ -322,3 +322,4 @@ Attendance → HR/Super Admin console (which is also where bank-change-request
 approval and document/policy verification UIs belong) → cross-cutting
 reports. Each placeholder page's route, breadcrumb, and RLS-backed table
 already exist, so those sessions are UI + query work, not re-architecture.
+# Convergix
