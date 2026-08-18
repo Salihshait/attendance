@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import type { LeaveBalanceRow, LeaveRequestRow, PermissionRequestRow, RegularizationRow } from '@/types/attendance';
+import type { LeaveBalanceRow, LeaveRequestRow, PermissionBalanceRow, PermissionRequestRow, RegularizationRow, RequestStatus } from '@/types/attendance';
 
 export function useLeaveTypes(organizationId: string | undefined) {
   return useQuery({
@@ -26,13 +26,16 @@ export function useLeaveBalances(employeeId: string | undefined) {
     queryFn: async (): Promise<LeaveBalanceRow[]> => {
       const { data, error } = await supabase
         .from('leave_balances')
-        .select('leave_type_id, opening, credited, used, balance, leave_type:leave_types(name)')
+        .select('leave_type_id, period_start, period_end, opening, credited, used, balance, leave_type:leave_types(name)')
         .eq('employee_id', employeeId)
-        .order('leave_type_id');
+        .order('leave_type_id')
+        .order('period_start');
       if (error) throw error;
       return (data ?? []).map((row) => ({
         leaveTypeId: row.leave_type_id,
         leaveTypeName: (row.leave_type as unknown as { name: string } | null)?.name ?? '-',
+        periodStart: row.period_start,
+        periodEnd: row.period_end,
         opening: Number(row.opening),
         credited: Number(row.credited),
         used: Number(row.used),
@@ -78,7 +81,11 @@ export interface OndutyRequestRow {
   ondutyType: 'on_duty' | 'work_from_home';
   fromDate: string;
   toDate: string;
-  status: string;
+  reason: string;
+  location: string | null;
+  appliedOn: string;
+  approvalRemarks: string | null;
+  status: RequestStatus;
 }
 
 export function useOndutyRequests(employeeId: string | undefined) {
@@ -88,7 +95,7 @@ export function useOndutyRequests(employeeId: string | undefined) {
     queryFn: async (): Promise<OndutyRequestRow[]> => {
       const { data, error } = await supabase
         .from('onduty_requests')
-        .select('id, onduty_type, from_date, to_date, status')
+        .select('id, onduty_type, from_date, to_date, reason, location, applied_on, approval_remarks, status')
         .eq('employee_id', employeeId)
         .order('from_date', { ascending: false });
       if (error) throw error;
@@ -97,8 +104,78 @@ export function useOndutyRequests(employeeId: string | undefined) {
         ondutyType: row.onduty_type,
         fromDate: row.from_date,
         toDate: row.to_date,
+        reason: row.reason,
+        location: row.location,
+        appliedOn: row.applied_on,
+        approvalRemarks: row.approval_remarks,
         status: row.status,
       }));
+    },
+  });
+}
+
+export interface NewOndutyRequestInput {
+  organizationId: string;
+  employeeId: string;
+  reportingManagerId: string | null;
+  ondutyType: 'on_duty' | 'work_from_home';
+  fromDate: string;
+  toDate: string;
+  reason: string;
+  location?: string | null;
+}
+
+export function useCreateOndutyRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewOndutyRequestInput) => {
+      const { error } = await supabase.from('onduty_requests').insert({
+        organization_id: input.organizationId,
+        employee_id: input.employeeId,
+        reporting_manager_id: input.reportingManagerId,
+        onduty_type: input.ondutyType,
+        from_date: input.fromDate,
+        to_date: input.toDate,
+        reason: input.reason,
+        location: input.location ?? null,
+        entry_by: input.employeeId,
+        status: 'pending',
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['onduty-requests', variables.employeeId] });
+    },
+  });
+}
+
+// Current calendar month's permission balance for the employee. Monthly
+// periods mirror leave_balances' period_start/period_end shape — a
+// year-wise view would sum every period_start falling in that year for the
+// employee, same pattern as any other monthly-bucketed ledger.
+export function useMyPermissionBalance(employeeId: string | undefined) {
+  return useQuery({
+    queryKey: ['permission-balance', employeeId],
+    enabled: Boolean(employeeId),
+    queryFn: async (): Promise<PermissionBalanceRow | null> => {
+      const today = new Date();
+      const periodStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+      const { data, error } = await supabase
+        .from('permission_balances')
+        .select('period_start, period_end, opening_minutes, credited_minutes, used_minutes, balance_minutes')
+        .eq('employee_id', employeeId)
+        .eq('period_start', periodStart)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        periodStart: data.period_start,
+        periodEnd: data.period_end,
+        openingMinutes: data.opening_minutes,
+        creditedMinutes: data.credited_minutes,
+        usedMinutes: data.used_minutes,
+        balanceMinutes: data.balance_minutes,
+      };
     },
   });
 }
@@ -263,7 +340,7 @@ export function useCreateRegularization() {
 
 // --- Cancel actions, shared shape across the three request tables ---
 
-function useCancelMutation(table: 'leave_requests' | 'permission_requests' | 'attendance_regularizations', queryKey: string) {
+function useCancelMutation(table: 'leave_requests' | 'permission_requests' | 'attendance_regularizations' | 'onduty_requests', queryKey: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }: { id: string; employeeId: string }) => {
@@ -284,4 +361,7 @@ export function useCancelPermissionRequest() {
 }
 export function useCancelRegularization() {
   return useCancelMutation('attendance_regularizations', 'regularizations');
+}
+export function useCancelOndutyRequest() {
+  return useCancelMutation('onduty_requests', 'onduty-requests');
 }

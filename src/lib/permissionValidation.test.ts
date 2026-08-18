@@ -6,13 +6,15 @@ function baseInput(overrides: Partial<Parameters<typeof validatePermissionReques
     permissionDate: '2026-08-17',
     fromTime: '10:00',
     toTime: '11:00',
+    requestedMinutes: 60,
+    availableBalanceMinutes: 180,
     existingRequests: [],
     ...overrides,
   };
 }
 
 describe('validatePermissionRequest', () => {
-  it('accepts a request with no conflicts', () => {
+  it('accepts a request with no conflicts and sufficient balance', () => {
     const result = validatePermissionRequest(baseInput());
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
@@ -56,5 +58,31 @@ describe('validatePermissionRequest', () => {
       }),
     );
     expect(result.valid).toBe(true);
+  });
+
+  // PERM-BAL-008: insufficient balance
+  it('flags a request that exceeds the available monthly balance', () => {
+    const result = validatePermissionRequest(baseInput({ requestedMinutes: 200, availableBalanceMinutes: 180 }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.toLowerCase().includes('insufficient'))).toBe(true);
+  });
+
+  // PERM-BAL-009: exact balance is allowed (not "more than")
+  it('allows a request that exactly matches the available balance', () => {
+    const result = validatePermissionRequest(baseInput({ requestedMinutes: 180, availableBalanceMinutes: 180 }));
+    expect(result.valid).toBe(true);
+  });
+
+  it('formats the insufficient-balance error as HH:MM, not decimal hours', () => {
+    const result = validatePermissionRequest(baseInput({ requestedMinutes: 90, availableBalanceMinutes: 30 }));
+    expect(result.errors.some((e) => e.includes('01:30') && e.includes('00:30'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('1.5') || e.includes('0.5'))).toBe(false);
+  });
+
+  // No balance row yet (e.g. new employee) — callers pass 0, which blocks
+  // any non-zero request, matching leaveValidation's `balance?.balance ?? 0`.
+  it('treats a missing balance (0) as blocking, not unlimited', () => {
+    const result = validatePermissionRequest(baseInput({ requestedMinutes: 30, availableBalanceMinutes: 0 }));
+    expect(result.valid).toBe(false);
   });
 });

@@ -5,7 +5,8 @@ import type { AdminShiftRow } from '@/types/admin';
 
 const SHIFT_SELECT =
   'id, name, start_time, end_time, grace_minutes, half_day_hours, full_day_hours, is_active, ' +
-  'weekoff_days, overtime_enabled, overtime_rate_multiplier, late_rule_enabled, early_going_rule_enabled, shortfall_rule_enabled';
+  'weekoff_days, overtime_enabled, overtime_rate_multiplier, late_rule_enabled, early_going_rule_enabled, shortfall_rule_enabled, ' +
+  'standard_break_minutes, min_break_minutes, max_break_minutes, break_paid, break_deduction_mode';
 
 function mapShiftRow(r: any): AdminShiftRow {
   return {
@@ -23,6 +24,11 @@ function mapShiftRow(r: any): AdminShiftRow {
     lateRuleEnabled: r.late_rule_enabled,
     earlyGoingRuleEnabled: r.early_going_rule_enabled,
     shortfallRuleEnabled: r.shortfall_rule_enabled,
+    standardBreakMinutes: r.standard_break_minutes,
+    minBreakMinutes: r.min_break_minutes,
+    maxBreakMinutes: r.max_break_minutes,
+    breakPaid: r.break_paid,
+    breakDeductionMode: r.break_deduction_mode,
   };
 }
 
@@ -98,6 +104,12 @@ export interface ShiftRulesInput {
   lateRuleEnabled: boolean;
   earlyGoingRuleEnabled: boolean;
   shortfallRuleEnabled: boolean;
+  /** Actually read by recompute_attendance_day() (0045) -- not informational-only, unlike the toggles above. */
+  standardBreakMinutes: number;
+  minBreakMinutes: number;
+  maxBreakMinutes: number;
+  breakPaid: boolean;
+  breakDeductionMode: 'actual' | 'standard';
 }
 
 /** Rule columns only — same query-key invalidation as base-field edits so Shifts and Attendance Rules stay in sync. */
@@ -114,6 +126,11 @@ export function useUpdateShiftRules() {
           late_rule_enabled: input.lateRuleEnabled,
           early_going_rule_enabled: input.earlyGoingRuleEnabled,
           shortfall_rule_enabled: input.shortfallRuleEnabled,
+          standard_break_minutes: input.standardBreakMinutes,
+          min_break_minutes: input.minBreakMinutes,
+          max_break_minutes: input.maxBreakMinutes,
+          break_paid: input.breakPaid,
+          break_deduction_mode: input.breakDeductionMode,
         })
         .eq('id', id);
       if (error) throw error;

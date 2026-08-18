@@ -3,10 +3,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/auth/useAuth';
-import { useCreatePermissionRequest, usePermissionRequests } from '@/hooks/useRequestQueries';
+import { useCreatePermissionRequest, useMyPermissionBalance, usePermissionRequests } from '@/hooks/useRequestQueries';
 import { Field, inputClass } from './LeaveRequestForm';
 import { ORG_ID } from '@/lib/orgContext';
 import { validatePermissionRequest } from '@/lib/permissionValidation';
+import { formatHoursMinutes } from '@/lib/dateFormat';
 
 const schema = z
   .object({
@@ -28,6 +29,7 @@ export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: s
   const { authSession } = useAuth();
   const createPermission = useCreatePermissionRequest();
   const { data: existingRequests } = usePermissionRequests(authSession?.employee.id, authSession?.employee.displayName ?? '');
+  const { data: balance } = useMyPermissionBalance(authSession?.employee.id);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const {
@@ -47,10 +49,18 @@ export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: s
     if (!authSession) return;
     setValidationErrors([]);
 
+    const inCurrentBalancePeriod =
+      balance && values.permissionDate >= balance.periodStart && values.permissionDate <= balance.periodEnd;
+
     const { valid, errors: ruleErrors } = validatePermissionRequest({
       permissionDate: values.permissionDate,
       fromTime: values.fromTime,
       toTime: values.toTime,
+      requestedMinutes: durationMinutes,
+      // Balance is only meaningful when the request falls in the tracked
+      // month; outside it there's no data to check against yet, so don't
+      // block on a balance concept that doesn't cover that period.
+      availableBalanceMinutes: inCurrentBalancePeriod ? balance.balanceMinutes : durationMinutes,
       existingRequests: (existingRequests ?? []).map((r) => ({
         permissionDate: r.permissionDate,
         fromTime: r.fromTime,
@@ -91,8 +101,14 @@ export function PermissionRequestForm({ defaultDate, onDone }: { defaultDate?: s
         </Field>
       </div>
 
-      <div className="rounded bg-slate-50 px-3 py-2 text-slate-600">
-        Duration: {durationMinutes > 0 ? `${String(Math.floor(durationMinutes / 60)).padStart(2, '0')}:${String(durationMinutes % 60).padStart(2, '0')}` : '-'}
+      <div className="flex items-center justify-between rounded bg-slate-50 px-3 py-2 text-slate-600">
+        <span>Duration: {durationMinutes > 0 ? formatHoursMinutes(durationMinutes) : '-'}</span>
+        {balance && (
+          <span>
+            Available: {formatHoursMinutes(balance.balanceMinutes)}
+            {durationMinutes > 0 ? ` → Remaining: ${formatHoursMinutes(balance.balanceMinutes - durationMinutes)}` : ''}
+          </span>
+        )}
       </div>
 
       <Field label="Reason" error={errors.reason?.message}>

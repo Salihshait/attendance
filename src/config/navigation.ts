@@ -65,6 +65,8 @@ export const sidebarModules: NavModule[] = [
         items: [
           { label: 'In / Out Records', path: '/attendance/in-out-records' },
           { label: 'Raw In / Out Records', path: '/attendance/raw-in-out-records' },
+          { label: 'Missing Attendance', path: '/attendance/missing-attendance' },
+          { label: 'Monthly Analysis', path: '/attendance/monthly-analysis' },
           { label: 'Balance', path: '/attendance/balance' },
           { label: 'Holiday List', path: '/attendance/holiday-list' },
         ],
@@ -165,12 +167,22 @@ export const sidebarModules: NavModule[] = [
         ],
       },
       {
+        heading: 'Compliance',
+        items: [
+          { label: 'Biometric Readers', path: '/admin/biometric-readers' },
+          { label: 'Email Configuration', path: '/admin/email-configuration' },
+          { label: 'Attendance Reconciliation', path: '/admin/reconciliation' },
+        ],
+      },
+      {
         heading: 'Insights',
         items: [
           { label: 'Documents', path: '/admin/documents' },
           { label: 'Payroll', path: '/admin/payroll' },
           { label: 'Reports', path: '/admin/reports' },
           { label: 'Notifications', path: '/admin/notifications' },
+          { label: 'Email Templates', path: '/admin/email-templates' },
+          { label: 'Email Delivery Logs', path: '/admin/email-delivery-logs' },
           { label: 'Audit Logs', path: '/admin/audit-logs' },
           { label: 'System Settings', path: '/admin/system-settings', roles: ['super_admin'] },
         ],

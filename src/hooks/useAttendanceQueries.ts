@@ -1,7 +1,39 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { formatDateISO } from '@/lib/utils';
-import type { AttendanceDay, HolidayRow, RawPunchRow } from '@/types/attendance';
+import type { AttendanceDay, HolidayRow, MissingAttendanceRow, RawPunchRow } from '@/types/attendance';
+
+// Scoped server-side by get_missing_attendance() itself (self/manager/HR —
+// same pattern as every other RLS-governed read in this app), so this hook
+// works unmodified for all three roles the report needs to serve.
+export function useMissingAttendance(fromDate: string, toDate: string, enabled = true) {
+  return useQuery({
+    queryKey: ['missing-attendance', fromDate, toDate],
+    enabled: enabled && Boolean(fromDate) && Boolean(toDate),
+    queryFn: async (): Promise<MissingAttendanceRow[]> => {
+      const { data, error } = await supabase.rpc('get_missing_attendance', {
+        _from_date: fromDate,
+        _to_date: toDate,
+      });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        employeeId: row.employee_id,
+        employeeCode: row.employee_code,
+        employeeName: row.employee_name,
+        departmentName: row.department_name,
+        locationName: row.location_name,
+        attendanceDate: row.attendance_date,
+        shiftName: row.shift_name,
+        shiftStartTime: row.shift_start_time,
+        shiftEndTime: row.shift_end_time,
+        missingIn: row.missing_in,
+        missingOut: row.missing_out,
+        dayStatus: row.day_status,
+        regularizationStatus: row.regularization_status,
+      }));
+    },
+  });
+}
 
 export function useAttendanceRange(employeeId: string | undefined, start: Date, end: Date) {
   const startStr = formatDateISO(start);
@@ -13,7 +45,7 @@ export function useAttendanceRange(employeeId: string | undefined, start: Date, 
     queryFn: async (): Promise<AttendanceDay[]> => {
       const { data, error } = await supabase
         .from('attendance')
-        .select('id, employee_id, attendance_date, check_in, check_out, effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, day_status, validation_status, remarks, shift:shifts(name)')
+        .select('id, employee_id, attendance_date, check_in, check_out, gross_minutes, break_minutes, effective_minutes, payable_minutes, has_excess_break, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, missing_in, missing_out, day_status, validation_status, remarks, shift:shifts(name)')
         .eq('employee_id', employeeId)
         .gte('attendance_date', startStr)
         .lte('attendance_date', endStr)
@@ -26,11 +58,17 @@ export function useAttendanceRange(employeeId: string | undefined, start: Date, 
         shiftName: (row.shift as unknown as { name: string } | null)?.name ?? null,
         checkIn: row.check_in,
         checkOut: row.check_out,
+        grossMinutes: row.gross_minutes,
+        breakMinutes: row.break_minutes,
         effectiveMinutes: row.effective_minutes,
+        payableMinutes: row.payable_minutes,
+        hasExcessBreak: row.has_excess_break,
         lateMinutes: row.late_minutes,
         earlyGoingMinutes: row.early_going_minutes,
         excessStayMinutes: row.excess_stay_minutes,
         shortfallMinutes: row.shortfall_minutes,
+        missingIn: row.missing_in,
+        missingOut: row.missing_out,
         dayStatus: row.day_status,
         validationStatus: row.validation_status,
         remarks: row.remarks,
@@ -82,7 +120,7 @@ export function useAttendanceDay(employeeId: string | undefined, date: string | 
     queryFn: async (): Promise<AttendanceDay | null> => {
       const { data, error } = await supabase
         .from('attendance')
-        .select('id, employee_id, attendance_date, check_in, check_out, effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, day_status, validation_status, remarks, shift:shifts(name)')
+        .select('id, employee_id, attendance_date, check_in, check_out, gross_minutes, break_minutes, effective_minutes, payable_minutes, has_excess_break, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, missing_in, missing_out, day_status, validation_status, remarks, shift:shifts(name)')
         .eq('employee_id', employeeId)
         .eq('attendance_date', date)
         .maybeSingle();
@@ -95,11 +133,17 @@ export function useAttendanceDay(employeeId: string | undefined, date: string | 
         shiftName: (data.shift as unknown as { name: string } | null)?.name ?? null,
         checkIn: data.check_in,
         checkOut: data.check_out,
+        grossMinutes: data.gross_minutes,
+        breakMinutes: data.break_minutes,
         effectiveMinutes: data.effective_minutes,
+        payableMinutes: data.payable_minutes,
+        hasExcessBreak: data.has_excess_break,
         lateMinutes: data.late_minutes,
         earlyGoingMinutes: data.early_going_minutes,
         excessStayMinutes: data.excess_stay_minutes,
         shortfallMinutes: data.shortfall_minutes,
+        missingIn: data.missing_in,
+        missingOut: data.missing_out,
         dayStatus: data.day_status,
         validationStatus: data.validation_status,
         remarks: data.remarks,

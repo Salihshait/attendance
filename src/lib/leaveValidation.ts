@@ -47,6 +47,44 @@ function rangesOverlap(aFrom: string, aTo: string, bFrom: string, bTo: string): 
   return aFrom <= bTo && bFrom <= aTo;
 }
 
+export interface LeaveBalancePeriod {
+  leaveTypeId: string;
+  periodStart: string;
+  periodEnd: string;
+}
+
+/**
+ * Some leave types now have multiple leave_balances rows per year (monthly
+ * accrual — see 0042_monthly_leave_balance_periods.sql), not just one. Finds
+ * the row whose period actually contains `date`, instead of assuming
+ * "one row per type" like a flat .find(leaveTypeId) would.
+ */
+export function findApplicableLeaveBalance<T extends LeaveBalancePeriod>(
+  balances: T[],
+  leaveTypeId: string,
+  date: string,
+): T | undefined {
+  return balances.find((b) => b.leaveTypeId === leaveTypeId && date >= b.periodStart && date <= b.periodEnd);
+}
+
+/**
+ * The balance actually available to spend on a new request. Monthly-accrual
+ * types (CL/SL) carry 12 separate leave_balances rows, one per month — but a
+ * leave request shouldn't be capped at whatever a single month's slice
+ * happens to be (e.g. rejecting a 2-day request because August's row alone
+ * only holds 1 day, while July's unused day sits right there unused). This
+ * sums every period row for the type instead, matching how BalancePage.tsx
+ * already presents the type's balance (a single year total, expandable into
+ * its monthly breakdown) — mirrors act_on_approval()'s deduction, which
+ * draws from the same pool of periods rather than one row.
+ */
+export function totalLeaveBalance<T extends LeaveBalancePeriod & { balance: number }>(
+  balances: T[],
+  leaveTypeId: string,
+): number {
+  return balances.filter((b) => b.leaveTypeId === leaveTypeId).reduce((sum, b) => sum + b.balance, 0);
+}
+
 const ACTIVE_STATUSES = new Set(['draft', 'pending', 'approved']);
 
 export function validateLeaveRequest(input: LeaveValidationInput): LeaveValidationResult {

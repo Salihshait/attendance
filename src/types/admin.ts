@@ -1,3 +1,6 @@
+import type { EmailTemplateKey } from '@/lib/emailEngine';
+export type { EmailTemplateKey };
+
 export interface AdminEmployeeRow {
   id: string;
   employeeCode: string;
@@ -90,6 +93,15 @@ export interface AdminShiftRow {
   lateRuleEnabled: boolean;
   earlyGoingRuleEnabled: boolean;
   shortfallRuleEnabled: boolean;
+  /** Used when breakDeductionMode = 'standard': deducted flat once any qualifying break occurs, regardless of the gap's actual measured length. */
+  standardBreakMinutes: number;
+  /** A gap shorter than this isn't a formal break -- bridged into effective time instead. */
+  minBreakMinutes: number;
+  /** A gap longer than this doesn't change the math but is flagged (attendance.has_excess_break) for review. */
+  maxBreakMinutes: number;
+  /** Paid break time still counts toward satisfying required hours (payable_minutes); unpaid does not. */
+  breakPaid: boolean;
+  breakDeductionMode: 'actual' | 'standard';
 }
 
 export interface AdminLeaveTypeRow {
@@ -214,12 +226,16 @@ export interface AdminAuditLogRow {
   id: string;
   actorUserId: string | null;
   actorName: string;
+  actorRole: string | null;
+  employeeId: string | null;
+  employeeName: string | null;
   action: string;
   module: string;
   recordId: string | null;
   oldValue: unknown;
   newValue: unknown;
   ipAddress: string | null;
+  result: 'success' | 'failure';
   createdAt: string;
 }
 
@@ -227,4 +243,113 @@ export interface AdminSystemSettingRow {
   settingKey: string;
   settingValue: unknown;
   updatedAt: string | null;
+}
+
+export interface AdminEmailTemplateRow {
+  id: string;
+  templateKey: EmailTemplateKey;
+  name: string;
+  subject: string;
+  body: string;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export type EmailDeliveryStatus = 'pending' | 'sent' | 'failed' | 'retrying';
+
+export interface AdminEmailDeliveryLogRow {
+  id: string;
+  templateKey: string;
+  recipientEmail: string;
+  cc: string[];
+  bcc: string[];
+  subject: string | null;
+  status: EmailDeliveryStatus;
+  errorMessage: string | null;
+  referenceId: string | null;
+  attemptCount: number;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export type BiometricReaderType = 'biometric' | 'rfid' | 'face_recognition' | 'hybrid';
+export type BiometricSyncStatus = 'success' | 'failed' | 'never';
+
+export interface AdminBiometricReaderRow {
+  id: string;
+  name: string;
+  deviceId: string;
+  readerType: BiometricReaderType;
+  ipAddress: string;
+  port: number;
+  location: string | null;
+  isActive: boolean;
+  syncIntervalMinutes: number;
+  lastSyncAt: string | null;
+  lastSyncStatus: BiometricSyncStatus;
+  lastErrorMessage: string | null;
+}
+
+export type BiometricSyncEventType =
+  | 'created'
+  | 'updated'
+  | 'enabled'
+  | 'disabled'
+  | 'test_connection'
+  | 'sync_started'
+  | 'sync_completed'
+  | 'sync_failed';
+export type BiometricSyncEventStatus = 'success' | 'failed' | 'in_progress';
+
+export interface AdminBiometricSyncLogRow {
+  id: string;
+  readerId: string;
+  readerName: string;
+  eventType: BiometricSyncEventType;
+  status: BiometricSyncEventStatus;
+  recordsSynced: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface AdminEmailConfiguration {
+  host: string | null;
+  port: number | null;
+  encryption: 'none' | 'tls' | 'ssl';
+  username: string | null;
+  hasPassword: boolean;
+  fromName: string | null;
+  fromEmail: string | null;
+  replyTo: string | null;
+  isActive: boolean;
+  updatedAt: string | null;
+}
+
+export type ReconciliationMismatchType =
+  | 'biometric_present_but_leave'
+  | 'wfh_with_biometric_present'
+  | 'unexplained_absence'
+  | 'onduty_marked_absent'
+  | 'missing_in'
+  | 'missing_out'
+  | 'duplicate_punch'
+  | 'invalid_punch_sequence';
+
+export type ReconciliationResolutionStatus = 'open' | 'resolved' | 'accepted' | 'overridden';
+
+export interface AdminReconciliationFindingRow {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  findingDate: string;
+  mismatchType: ReconciliationMismatchType;
+  biometricStatus: string | null;
+  hrStatus: string | null;
+  expectedStatus: string | null;
+  resolutionStatus: ReconciliationResolutionStatus;
+  resolvedByName: string | null;
+  resolvedAt: string | null;
+  remarks: string | null;
+  createdAt: string;
 }

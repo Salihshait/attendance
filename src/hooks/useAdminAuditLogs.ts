@@ -24,7 +24,7 @@ export function useAuditLogs(filters: AuditLogFilters) {
     queryFn: async (): Promise<AdminAuditLogRow[]> => {
       let query = supabase
         .from('audit_logs')
-        .select('id, actor_user_id, action, module, record_id, old_value, new_value, ip_address, created_at')
+        .select('id, actor_user_id, actor_role, employee_id, action, module, record_id, old_value, new_value, ip_address, result, created_at')
         .eq('organization_id', ORG_ID)
         .order('created_at', { ascending: false })
         .limit(500);
@@ -49,16 +49,33 @@ export function useAuditLogs(filters: AuditLogFilters) {
         }
       }
 
+      const employeeIds = Array.from(new Set(rows.map((r) => r.employee_id).filter((id): id is string => Boolean(id))));
+      const nameByEmployeeId = new Map<string, string>();
+      if (employeeIds.length > 0) {
+        const { data: employees, error: employeesError } = await supabase
+          .from('employees')
+          .select('id, first_name, last_name')
+          .in('id', employeeIds);
+        if (employeesError) throw employeesError;
+        for (const e of employees ?? []) {
+          nameByEmployeeId.set(e.id, [e.first_name, e.last_name].filter(Boolean).join(' '));
+        }
+      }
+
       return rows.map((r) => ({
         id: r.id,
         actorUserId: r.actor_user_id,
         actorName: r.actor_user_id ? (nameByUserId.get(r.actor_user_id) ?? 'Unknown user') : 'System',
+        actorRole: r.actor_role,
+        employeeId: r.employee_id,
+        employeeName: r.employee_id ? (nameByEmployeeId.get(r.employee_id) ?? '-') : null,
         action: r.action,
         module: r.module,
         recordId: r.record_id,
         oldValue: r.old_value,
         newValue: r.new_value,
         ipAddress: r.ip_address,
+        result: r.result,
         createdAt: r.created_at,
       }));
     },

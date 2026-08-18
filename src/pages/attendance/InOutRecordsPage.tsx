@@ -51,6 +51,12 @@ export default function InOutRecordsPage() {
     { header: 'Shift', accessorFn: (r) => r.shiftName ?? '-', id: 'shift' },
     { header: 'In Time', accessorFn: (r) => formatClockTime(r.checkIn), id: 'inTime' },
     { header: 'Out Time', accessorFn: (r) => formatClockTime(r.checkOut), id: 'outTime' },
+    { header: 'Gross Duration', accessorFn: (r) => formatHoursMinutes(r.grossMinutes), id: 'gross' },
+    {
+      header: 'Break',
+      accessorFn: (r) => `${formatHoursMinutes(r.breakMinutes)}${r.hasExcessBreak ? ' ⚠' : ''}`,
+      id: 'break',
+    },
     { header: 'Effective Hours', accessorFn: (r) => formatHoursMinutes(r.effectiveMinutes), id: 'effective' },
     { header: 'Late', accessorFn: (r) => (r.lateMinutes > 0 ? formatHoursMinutes(r.lateMinutes) : '-'), id: 'late' },
     {

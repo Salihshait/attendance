@@ -5,6 +5,7 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable } from '@/components/ui/DataTable';
 import { FilterBar, FilterField, FilterDate, FilterSelect, FilterButton } from '@/components/ui/FilterBar';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useAuditLogs } from '@/hooks/useAdminAuditLogs';
 import { exportToCsv, type ExportColumn } from '@/lib/exportTable';
 import type { AdminAuditLogRow } from '@/types/admin';
@@ -31,12 +32,15 @@ function truncateJson(value: unknown): string {
 const exportColumns: ExportColumn<AdminAuditLogRow>[] = [
   { header: 'Timestamp', accessor: (r) => new Date(r.createdAt).toISOString() },
   { header: 'User', accessor: (r) => r.actorName },
+  { header: 'Role', accessor: (r) => r.actorRole ?? '-' },
+  { header: 'Employee', accessor: (r) => r.employeeName ?? '-' },
   { header: 'Module', accessor: (r) => r.module },
   { header: 'Action', accessor: (r) => actionLabels[r.action] ?? r.action },
   { header: 'Record', accessor: (r) => r.recordId ?? '-' },
   { header: 'Old Value', accessor: (r) => (r.oldValue ? JSON.stringify(r.oldValue) : '-') },
   { header: 'New Value', accessor: (r) => (r.newValue ? JSON.stringify(r.newValue) : '-') },
   { header: 'IP Address', accessor: (r) => r.ipAddress ?? '-' },
+  { header: 'Result', accessor: (r) => r.result },
 ];
 
 export default function AuditLogsPage() {
@@ -65,12 +69,22 @@ export default function AuditLogsPage() {
   const columns: ColumnDef<AdminAuditLogRow, any>[] = [
     { header: 'Timestamp', accessorFn: (r) => new Date(r.createdAt).toLocaleString(), id: 'timestamp' },
     { header: 'User', accessorKey: 'actorName' },
+    { header: 'Role', accessorFn: (r) => r.actorRole ?? '—', id: 'role' },
+    { header: 'Employee', accessorFn: (r) => r.employeeName ?? '—', id: 'employee' },
     { header: 'Module', accessorKey: 'module' },
     { header: 'Action', accessorFn: (r) => actionLabels[r.action] ?? r.action, id: 'action' },
     { header: 'Record', accessorFn: (r) => r.recordId ?? '-', id: 'record' },
     { header: 'Old Value', accessorFn: (r) => truncateJson(r.oldValue), id: 'oldValue' },
     { header: 'New Value', accessorFn: (r) => truncateJson(r.newValue), id: 'newValue' },
     { header: 'IP Address', accessorFn: (r) => r.ipAddress ?? '—', id: 'ip' },
+    {
+      header: 'Result',
+      accessorKey: 'result',
+      cell: ({ getValue }) => {
+        const result = getValue<string>();
+        return <StatusBadge status={result === 'success' ? 'approved' : 'rejected'} label={result === 'success' ? 'Success' : 'Failure'} />;
+      },
+    },
   ];
 
   return (

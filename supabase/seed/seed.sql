@@ -116,20 +116,47 @@ insert into public.shift_assignments (employee_id, shift_id, effective_from)
 select id, '11111111-1111-1111-1111-500000000001', date_of_joining
 from public.employees where organization_id = '11111111-1111-1111-1111-111111111111';
 
+-- EMP0006 actually works Night Shift -- override the blanket General Shift
+-- assignment above so recompute_attendance_day() (and every other
+-- shift_assignments-based lookup, e.g. get_missing_attendance()) resolves
+-- the shift this employee's overnight demo data below is generated against.
+insert into public.shift_assignments (employee_id, shift_id, effective_from)
+values ('11111111-1111-1111-1111-700000000006', '11111111-1111-1111-1111-500000000003', current_date - 90);
+
 -- Opening leave balances for the current year, per employee per leave type.
+-- Yearly/none-accrual types (PL, EL, LOP, ML, PTL, SPL) get one annual row.
+-- Monthly-accrual types (CL, SL) get 12 monthly rows instead — matches the
+-- reference app's Balance screen exactly, which shows a full year of
+-- individual monthly opening/used/balance rows for Casual Leave/Sick Leave
+-- when expanded, not one flat annual row (see 0042_monthly_leave_balance_periods.sql).
 insert into public.leave_balances (employee_id, leave_type_id, period_start, period_end, opening, credited, used, balance)
 select
   e.id,
   lt.id,
   make_date(extract(year from now())::int, 1, 1),
   make_date(extract(year from now())::int, 12, 31),
-  case lt.code when 'PL' then 18 when 'EL' then 12 when 'CL' then 12 when 'SL' then 12 else 0 end,
+  case lt.code when 'PL' then 18 when 'EL' then 12 else 0 end,
   0, 0,
-  case lt.code when 'PL' then 18 when 'EL' then 12 when 'CL' then 12 when 'SL' then 12 else 0 end
+  case lt.code when 'PL' then 18 when 'EL' then 12 else 0 end
 from public.employees e
 cross join public.leave_types lt
 where e.organization_id = '11111111-1111-1111-1111-111111111111'
-  and lt.organization_id = '11111111-1111-1111-1111-111111111111';
+  and lt.organization_id = '11111111-1111-1111-1111-111111111111'
+  and lt.accrual_frequency <> 'monthly';
+
+insert into public.leave_balances (employee_id, leave_type_id, period_start, period_end, opening, credited, used, balance)
+select
+  e.id,
+  lt.id,
+  make_date(extract(year from now())::int, months.m, 1),
+  (make_date(extract(year from now())::int, months.m, 1) + interval '1 month - 1 day')::date,
+  1, 0, 0, 1
+from public.employees e
+cross join public.leave_types lt
+cross join generate_series(1, 12) as months(m)
+where e.organization_id = '11111111-1111-1111-1111-111111111111'
+  and lt.organization_id = '11111111-1111-1111-1111-111111111111'
+  and lt.accrual_frequency = 'monthly';
 
 -- Default single-step (reporting manager) approval workflows for the three
 -- request types the Attendance module raises. HR/admin can always act too
@@ -144,9 +171,66 @@ insert into public.approval_steps (workflow_id, step_order, approver_type, is_fi
   ('11111111-1111-1111-1111-800000000002', 1, 'reporting_manager', true),
   ('11111111-1111-1111-1111-800000000003', 1, 'reporting_manager', true);
 
+-- Default active email template per template_key (0047), so the Email
+-- Templates admin screen has real, previewable/test-sendable content out
+-- of the box instead of an empty list.
+-- E'...' escape-string syntax is required for \n to actually become a
+-- newline -- a plain '...' string treats backslash literally (confirmed
+-- live: the Email Templates preview rendered a literal "\n\n" instead of a
+-- line break with plain-quoted strings).
+insert into public.email_templates (organization_id, template_key, name, subject, body, is_active) values
+  ('11111111-1111-1111-1111-111111111111', 'approval_request', 'Approval Request (default)',
+   'Approval needed: {{request_type}} from {{employee_name}}',
+   E'Hi {{manager_name}},\n\n{{employee_name}} ({{employee_id}}) has requested {{request_type}} from {{from_date}} to {{to_date}} ({{duration}}).\n\nReason: {{reason}}\n\nApplication ID: {{application_id}}\nReview: {{approval_url}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'approval_approved', 'Approval Approved (default)',
+   'Your {{request_type}} request has been approved',
+   E'Hi {{employee_name}},\n\nYour {{request_type}} request ({{application_id}}) from {{from_date}} to {{to_date}} ({{duration}}) has been approved by {{manager_name}}.\n\nRemarks: {{remarks}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'approval_rejected', 'Approval Rejected (default)',
+   'Your {{request_type}} request has been rejected',
+   E'Hi {{employee_name}},\n\nYour {{request_type}} request ({{application_id}}) from {{from_date}} to {{to_date}} ({{duration}}) has been rejected by {{manager_name}}.\n\nRemarks: {{remarks}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'missing_punch', 'Missing Punch (default)',
+   'Missing attendance punch for {{employee_name}} on {{from_date}}',
+   E'Hi {{manager_name}},\n\n{{employee_name}} ({{employee_id}}) has a missing punch on {{from_date}}. Status: {{status}}.',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'early_going', 'Early Going (default)',
+   'Early going recorded for {{employee_name}} on {{from_date}}',
+   E'Hi {{manager_name}},\n\n{{employee_name}} ({{employee_id}}) left early on {{from_date}}. Remarks: {{remarks}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'wfh_weekly_alert', 'WFH Weekly Alert (default)',
+   'WFH threshold exceeded for {{employee_name}}',
+   E'Hi {{manager_name}},\n\n{{employee_name}} ({{employee_id}}) has taken WFH for {{duration}} this week ({{from_date}} to {{to_date}}), above the configured threshold.',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'comp_off_expiry', 'Comp-Off Expiry (default)',
+   'Your Comp-Off credit is expiring soon',
+   E'Hi {{employee_name}},\n\nYour Comp-Off earned on {{from_date}} will expire on {{to_date}} if unused. Remarks: {{remarks}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'attendance_closure_reminder', 'Attendance Closure Reminder (default)',
+   'Attendance closure approaching for {{from_date}} to {{to_date}}',
+   E'Hi {{employee_name}},\n\nThe attendance period {{from_date}} to {{to_date}} closes soon. Please resolve any pending attendance issues before then.',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'reconciliation_alert', 'Reconciliation Alert (default)',
+   'Attendance reconciliation mismatch for {{employee_name}} on {{from_date}}',
+   E'Hi {{manager_name}},\n\nA reconciliation mismatch was found for {{employee_name}} ({{employee_id}}) on {{from_date}}. Status: {{status}}. Remarks: {{remarks}}',
+   true),
+  ('11111111-1111-1111-1111-111111111111', 'system_notification', 'System Notification (default)',
+   '{{request_type}}',
+   E'Hi {{employee_name}},\n\n{{remarks}}',
+   true);
+
 -- Attendance history: last ~60 days for every seeded employee. Weekoffs and
--- holidays are marked from the rows inserted above; everything else is a
--- randomized present/absent day around the General Shift (09:30-18:30).
+-- holidays are marked from the rows inserted above; everything else is
+-- randomized punches around each employee's actual assigned shift (General
+-- Shift for most; Night Shift 22:00-07:00 for EMP0006, giving a real example
+-- of the "10 PM -> 6 AM is 8 hours, not negative" overnight rule), fed
+-- through attendance_punches + recompute_attendance_day() -- the same
+-- multi-session engine every other punch source uses -- instead of writing
+-- attendance's metric columns directly. A majority of days get a lunch-break
+-- split into two sessions rather than a single in/out pair, so the demo data
+-- itself exercises the "sum of sessions, not first-in to final-out" rule
+-- (src/lib/attendanceCalc.ts's computeSessionsFromPunches mirrors this).
 do $$
 declare
   emp record;
@@ -154,23 +238,35 @@ declare
   is_weekoff boolean;
   holiday_name text;
   roll numeric;
-  check_in_minutes int;
-  check_out_minutes int;
-  effective_minutes int;
-  late_minutes int;
-  early_going_minutes int;
-  excess_stay_minutes int;
-  shortfall_minutes int;
-  shift_start_minutes constant int := 9 * 60 + 30;
-  shift_end_minutes constant int := 18 * 60 + 30;
-  grace_minutes constant int := 15;
-  full_day_minutes constant int := 9 * 60;
+  emp_shift_id uuid;
+  shift_start time;
+  shift_end time;
+  shift_start_minutes int;
+  shift_end_minutes int; -- normalized so it's always > shift_start_minutes, even overnight
+  first_in_minutes int;
+  last_out_minutes int;
+  lunch_out_minutes int;
+  lunch_in_minutes int;
+  has_lunch_break boolean;
   today constant date := current_date;
   start_date date := current_date - 60;
   org_id constant uuid := '11111111-1111-1111-1111-111111111111';
-  shift_id constant uuid := '11111111-1111-1111-1111-500000000001';
 begin
   for emp in select id from public.employees where organization_id = org_id loop
+    select sa.shift_id, s.start_time, s.end_time into emp_shift_id, shift_start, shift_end
+      from public.shift_assignments sa
+      join public.shifts s on s.id = sa.shift_id
+      where sa.employee_id = emp.id and sa.effective_from <= today
+      order by sa.effective_from desc limit 1;
+
+    continue when emp_shift_id is null; -- no shift assigned -- nothing to seed
+
+    shift_start_minutes := extract(hour from shift_start)::int * 60 + extract(minute from shift_start)::int;
+    shift_end_minutes := extract(hour from shift_end)::int * 60 + extract(minute from shift_end)::int;
+    if shift_end_minutes <= shift_start_minutes then
+      shift_end_minutes := shift_end_minutes + 1440; -- overnight shift
+    end if;
+
     d := start_date;
     while d <= today loop
       is_weekoff := extract(dow from d) in (0, 6);
@@ -178,122 +274,58 @@ begin
 
       if is_weekoff then
         insert into public.attendance (organization_id, employee_id, attendance_date, shift_id, day_status, validation_status)
-        values (org_id, emp.id, d, shift_id, 'weekoff', 'completed')
+        values (org_id, emp.id, d, emp_shift_id, 'weekoff', 'completed')
         on conflict (employee_id, attendance_date) do nothing;
       elsif holiday_name is not null then
         insert into public.attendance (organization_id, employee_id, attendance_date, shift_id, day_status, validation_status, remarks)
-        values (org_id, emp.id, d, shift_id, 'holiday', 'completed', holiday_name)
+        values (org_id, emp.id, d, emp_shift_id, 'holiday', 'completed', holiday_name)
         on conflict (employee_id, attendance_date) do nothing;
       else
+        delete from public.attendance_punches where employee_id = emp.id and punch_date = d;
+
         roll := random();
-        if roll < 0.04 then
-          insert into public.attendance (organization_id, employee_id, attendance_date, shift_id, day_status, validation_status)
-          values (org_id, emp.id, d, shift_id, 'absent', 'completed')
-          on conflict (employee_id, attendance_date) do nothing;
-        else
-          check_in_minutes := round(570 + random() * 85)::int;
-          check_out_minutes := round(1080 + random() * 160)::int;
-          effective_minutes := check_out_minutes - check_in_minutes;
-          late_minutes := greatest(0, check_in_minutes - (shift_start_minutes + grace_minutes));
-          early_going_minutes := greatest(0, shift_end_minutes - check_out_minutes);
-          excess_stay_minutes := greatest(0, check_out_minutes - shift_end_minutes);
-          shortfall_minutes := greatest(0, full_day_minutes - effective_minutes);
+        if roll >= 0.04 then
+          first_in_minutes := round(shift_start_minutes - 10 + random() * 95)::int; -- up to slightly early, or up to ~85 min late
+          last_out_minutes := round(shift_end_minutes - 30 + random() * 160)::int; -- around shift end, sometimes well past it
+          has_lunch_break := random() < 0.6 and (last_out_minutes - first_in_minutes) > 180;
 
-          insert into public.attendance (
-            organization_id, employee_id, attendance_date, shift_id, check_in, check_out,
-            effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes,
-            day_status, validation_status
-          ) values (
-            org_id, emp.id, d, shift_id,
-            d + (check_in_minutes || ' minutes')::interval,
-            d + (check_out_minutes || ' minutes')::interval,
-            effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes,
-            case when effective_minutes < 300 then 'half_day' else 'present' end,
-            'completed'
-          )
-          on conflict (employee_id, attendance_date) do nothing;
+          if has_lunch_break then
+            lunch_out_minutes := round((first_in_minutes + last_out_minutes) / 2.0 - 30)::int;
+            lunch_in_minutes := lunch_out_minutes + 15 + round(random() * 45)::int; -- 15-60 min break
 
-          -- Raw in/out punches backing the attendance row above, for the
-          -- Raw In/Out Records report. Device/source vary so the demo data
-          -- isn't monotonous.
-          insert into public.attendance_punches (organization_id, employee_id, punch_date, punch_time, punch_type, device, location, source)
-          values
-            (org_id, emp.id, d, d + (check_in_minutes || ' minutes')::interval, 'in',
-             case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
-             case when random() < 0.85 then 'biometric' else 'mobile' end),
-            (org_id, emp.id, d, d + (check_out_minutes || ' minutes')::interval, 'out',
-             case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
-             case when random() < 0.85 then 'biometric' else 'mobile' end);
+            insert into public.attendance_punches (organization_id, employee_id, punch_date, punch_time, punch_type, device, location, source)
+            values
+              (org_id, emp.id, d, d + (first_in_minutes || ' minutes')::interval, 'in',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end),
+              (org_id, emp.id, d, d + (lunch_out_minutes || ' minutes')::interval, 'out',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end),
+              (org_id, emp.id, d, d + (lunch_in_minutes || ' minutes')::interval, 'in',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end),
+              (org_id, emp.id, d, d + (last_out_minutes || ' minutes')::interval, 'out',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end);
+          else
+            insert into public.attendance_punches (organization_id, employee_id, punch_date, punch_time, punch_type, device, location, source)
+            values
+              (org_id, emp.id, d, d + (first_in_minutes || ' minutes')::interval, 'in',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end),
+              (org_id, emp.id, d, d + (last_out_minutes || ' minutes')::interval, 'out',
+               case when random() < 0.5 then 'Biometric-Gate1' else 'Biometric-Gate2' end, 'Chennai Office',
+               case when random() < 0.85 then 'biometric' else 'mobile' end);
+          end if;
         end if;
+        -- roll < 0.04: no punches inserted at all -- recompute_attendance_day
+        -- below correctly derives day_status = 'absent' from zero punches.
+
+        perform public.recompute_attendance_day(emp.id, d);
       end if;
 
       d := d + 1;
     end loop;
-  end loop;
-end $$;
-
--- Overnight-shift demo data for EMP0006 (Night Shift, 22:00 -> 07:00) so the
--- calendar/reports have a real example of the "10 PM -> 6 AM is 8 hours, not
--- negative" rule (see src/lib/attendanceCalc.ts) instead of only General
--- Shift rows.
-do $$
-declare
-  d date;
-  check_in_minutes int;
-  check_out_minutes int; -- minutes into the *next* day, before normalization
-  effective_minutes int;
-  late_minutes int;
-  early_going_minutes int;
-  excess_stay_minutes int;
-  shortfall_minutes int;
-  shift_start_minutes constant int := 22 * 60;
-  shift_end_minutes constant int := 7 * 60; -- wraps past midnight
-  shift_end_normalized constant int := shift_end_minutes + 24 * 60;
-  grace_minutes constant int := 10;
-  full_day_minutes constant int := 8 * 60;
-  org_id constant uuid := '11111111-1111-1111-1111-111111111111';
-  emp_id constant uuid := '11111111-1111-1111-1111-700000000006';
-  night_shift_id constant uuid := '11111111-1111-1111-1111-500000000003';
-  today constant date := current_date;
-begin
-  for i in 1..5 loop
-    d := today - i;
-    continue when extract(dow from d) in (0, 6);
-
-    check_in_minutes := round(shift_start_minutes + random() * 20)::int; -- ~22:00-22:20
-    check_out_minutes := round(shift_end_normalized - 20 + random() * 40)::int; -- ~06:40-07:20 next day
-
-    effective_minutes := check_out_minutes - check_in_minutes;
-    late_minutes := greatest(0, check_in_minutes - (shift_start_minutes + grace_minutes));
-    early_going_minutes := greatest(0, shift_end_normalized - check_out_minutes);
-    excess_stay_minutes := greatest(0, check_out_minutes - shift_end_normalized);
-    shortfall_minutes := greatest(0, full_day_minutes - effective_minutes);
-
-    insert into public.attendance (
-      organization_id, employee_id, attendance_date, shift_id, check_in, check_out,
-      effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes,
-      day_status, validation_status
-    ) values (
-      org_id, emp_id, d, night_shift_id,
-      d + (check_in_minutes || ' minutes')::interval,
-      d + (check_out_minutes || ' minutes')::interval, -- interval > 24h rolls into the next calendar day, as intended
-      effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes,
-      case when effective_minutes < 300 then 'half_day' else 'present' end,
-      'completed'
-    )
-    on conflict (employee_id, attendance_date) do update set
-      shift_id = excluded.shift_id, check_in = excluded.check_in, check_out = excluded.check_out,
-      effective_minutes = excluded.effective_minutes, late_minutes = excluded.late_minutes,
-      early_going_minutes = excluded.early_going_minutes, excess_stay_minutes = excluded.excess_stay_minutes,
-      shortfall_minutes = excluded.shortfall_minutes, day_status = excluded.day_status;
-
-    -- Replace whatever General Shift punches the main loop above generated
-    -- for this employee/date so Raw In/Out Records shows a clean pair.
-    delete from public.attendance_punches where employee_id = emp_id and punch_date = d;
-    insert into public.attendance_punches (organization_id, employee_id, punch_date, punch_time, punch_type, device, location, source)
-    values
-      (org_id, emp_id, d, d + (check_in_minutes || ' minutes')::interval, 'in', 'Biometric-Gate1', 'Chennai Office', 'biometric'),
-      (org_id, emp_id, d, d + (check_out_minutes || ' minutes')::interval, 'out', 'Biometric-Gate1', 'Chennai Office', 'biometric');
   end loop;
 end $$;
 
@@ -323,19 +355,23 @@ from (values
 -- that the approved requests above exist, so a fresh install's Balance
 -- screen isn't inconsistent with its own request history from day one.
 -- (act_on_approval(), as of 0031, keeps this in sync for anything approved
--- through the app after seeding.)
+-- through the app after seeding.) Grouped by each request's own from_date
+-- against the matching period row (not just "today"'s period) — CL/SL now
+-- have 12 monthly rows each, so a request from any month must land in that
+-- month's row, not have every month's usage collapsed into whichever
+-- period happens to contain the seed's run date.
 update public.leave_balances lb
 set used = lb.used + approved.total_days,
     balance = lb.balance - approved.total_days
 from (
-  select employee_id, leave_type_id, sum(duration_days) as total_days
+  select employee_id, leave_type_id, from_date, sum(duration_days) as total_days
   from public.leave_requests
   where status = 'approved'
-  group by employee_id, leave_type_id
+  group by employee_id, leave_type_id, from_date
 ) as approved
 where lb.employee_id = approved.employee_id
   and lb.leave_type_id = approved.leave_type_id
-  and lb.period_start <= current_date and lb.period_end >= current_date;
+  and lb.period_start <= approved.from_date and lb.period_end >= approved.from_date;
 
 insert into public.permission_requests (
   organization_id, employee_id, reporting_manager_id, entry_by,
@@ -567,5 +603,66 @@ insert into public.exit_clearances (exit_request_id, department, status, cleared
 
 insert into public.exit_interviews (exit_request_id, employee_id, status) values
   ('11111111-1111-1111-1111-900000000002', '11111111-1111-1111-1111-700000000010', 'pending');
+
+-- Real Supabase Auth login credentials for every seeded employee -- without
+-- this, the seed data above has no way to actually log into the app.
+-- `postgres` has INSERT on auth.users/auth.identities on every Supabase
+-- project (confirmed live, this is the standard documented technique for
+-- seeding auth users directly via SQL, not something project-specific).
+-- Password is the same for every seeded account: Demo@12345
+-- Username on the login screen is the employee_code (EMP0001, ...) --
+-- resolve_login_email() (0023) maps that to official_email.
+-- Role codes are looked up dynamically (not hardcoded UUIDs), since
+-- roles.id is gen_random_uuid() and differs per project.
+do $$
+declare
+  emp record;
+  new_user_id uuid;
+  role_code text;
+  role_id uuid;
+  org_id constant uuid := '11111111-1111-1111-1111-111111111111';
+  password constant text := 'Demo@12345';
+  extra_roles jsonb := jsonb_build_object(
+    'EMP0002', jsonb_build_array('manager'),
+    'EMP0003', jsonb_build_array('hr_admin'),
+    'EMP0004', jsonb_build_array('manager', 'super_admin')
+  );
+begin
+  for emp in select id, employee_code, official_email from public.employees where user_id is null order by employee_code loop
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      email_change_token_current, reauthentication_token
+    ) values (
+      '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
+      emp.official_email, crypt(password, gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now(),
+      '', '', '', '', '', ''
+    )
+    returning id into new_user_id;
+
+    insert into auth.identities (id, provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (
+      gen_random_uuid(), new_user_id::text, new_user_id,
+      jsonb_build_object('sub', new_user_id::text, 'email', emp.official_email),
+      'email', now(), now(), now()
+    );
+
+    update public.employees set user_id = new_user_id where id = emp.id;
+
+    insert into public.user_roles (id, user_id, role_id, organization_id)
+      select gen_random_uuid(), new_user_id, r.id, org_id from public.roles r where r.code = 'employee';
+
+    for role_code in select jsonb_array_elements_text(coalesce(extra_roles->emp.employee_code, '[]'::jsonb)) loop
+      select id into role_id from public.roles where code = role_code;
+      if role_id is not null then
+        insert into public.user_roles (id, user_id, role_id, organization_id)
+          values (gen_random_uuid(), new_user_id, role_id, org_id);
+      end if;
+    end loop;
+  end loop;
+end;
+$$;
 
 commit;

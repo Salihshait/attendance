@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useCreateLeaveRequest, useLeaveBalances, useLeaveRequests, useLeaveTypes } from '@/hooks/useRequestQueries';
 import { useHolidays } from '@/hooks/useAttendanceQueries';
-import { validateLeaveRequest } from '@/lib/leaveValidation';
+import { validateLeaveRequest, totalLeaveBalance } from '@/lib/leaveValidation';
 import { ORG_ID } from '@/lib/orgContext';
 import { Field, inputClass } from '@/components/ui/FormField';
 
@@ -61,7 +61,11 @@ export function LeaveRequestForm({ defaultDate, onDone }: { defaultDate?: string
   const fromDate = watch('fromDate');
   const toDate = watch('toDate');
   const days = countDays(fromDate, toDate);
-  const balance = balances?.find((b) => b.leaveTypeId === leaveTypeId);
+  // CL/SL have 12 monthly leave_balances rows instead of one flat annual row
+  // (0042) — sum across all of them so an unused day from an earlier month
+  // still counts, rather than capping the request at whichever single
+  // month's row the from-date happens to land in.
+  const availableBalance = leaveTypeId ? totalLeaveBalance(balances ?? [], leaveTypeId) : undefined;
 
   if (!authSession) return null;
 
@@ -74,7 +78,7 @@ export function LeaveRequestForm({ defaultDate, onDone }: { defaultDate?: string
       fromDate: values.fromDate,
       toDate: values.toDate,
       requestedDays: days,
-      availableBalance: balance?.balance ?? 0,
+      availableBalance: availableBalance ?? 0,
       existingRequests: (existingRequests ?? []).map((r) => ({ fromDate: r.fromDate, toDate: r.toDate, status: r.status })),
       holidayDates,
       weekoffDayIndexes: WEEKOFF_DAY_INDEXES,
@@ -135,9 +139,9 @@ export function LeaveRequestForm({ defaultDate, onDone }: { defaultDate?: string
 
       <div className="flex items-center justify-between rounded bg-slate-50 px-3 py-2 text-slate-600">
         <span>Requested Days: {days > 0 ? `${days} day${days > 1 ? 's' : ''}` : '-'}</span>
-        {balance && (
+        {availableBalance !== undefined && (
           <span>
-            Available: {balance.balance} &rarr; Remaining: {days > 0 ? (balance.balance - days).toFixed(2) : balance.balance}
+            Available: {availableBalance} &rarr; Remaining: {days > 0 ? (availableBalance - days).toFixed(2) : availableBalance}
           </span>
         )}
       </div>

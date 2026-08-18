@@ -45,7 +45,7 @@ export function useTeamAttendance(teamEmployeeIds: string[], start: Date, end: D
       const { data, error } = await supabase
         .from('attendance')
         .select(
-          'id, employee_id, attendance_date, check_in, check_out, effective_minutes, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, day_status, validation_status, remarks, shift:shifts(name), employee:employees(first_name, last_name, employee_code)',
+          'id, employee_id, attendance_date, check_in, check_out, gross_minutes, break_minutes, effective_minutes, payable_minutes, has_excess_break, late_minutes, early_going_minutes, excess_stay_minutes, shortfall_minutes, missing_in, missing_out, day_status, validation_status, remarks, shift:shifts(name), employee:employees(first_name, last_name, employee_code)',
         )
         .in('employee_id', teamEmployeeIds)
         .gte('attendance_date', startStr)
@@ -59,11 +59,17 @@ export function useTeamAttendance(teamEmployeeIds: string[], start: Date, end: D
         shiftName: (row.shift as unknown as { name: string } | null)?.name ?? null,
         checkIn: row.check_in,
         checkOut: row.check_out,
+        grossMinutes: row.gross_minutes,
+        breakMinutes: row.break_minutes,
         effectiveMinutes: row.effective_minutes,
+        payableMinutes: row.payable_minutes,
+        hasExcessBreak: row.has_excess_break,
         lateMinutes: row.late_minutes,
         earlyGoingMinutes: row.early_going_minutes,
         excessStayMinutes: row.excess_stay_minutes,
         shortfallMinutes: row.shortfall_minutes,
+        missingIn: row.missing_in,
+        missingOut: row.missing_out,
         dayStatus: row.day_status,
         validationStatus: row.validation_status,
         remarks: row.remarks,

@@ -113,7 +113,14 @@ function ShiftForm({
 }: {
   initial: AdminShiftRow | null;
   onDone: () => void;
-  onSubmit: (values: { name: string; startTime: string; endTime: string; graceMinutes: number; halfDayHours: number; fullDayHours: number }) => Promise<void>;
+  onSubmit: (values: {
+    name: string;
+    startTime: string;
+    endTime: string;
+    graceMinutes: number;
+    halfDayHours: number;
+    fullDayHours: number;
+  }) => Promise<void>;
   isPending: boolean;
   submitError?: string;
 }) {
@@ -176,6 +183,7 @@ function ShiftForm({
           <input type="number" step="0.5" {...register('fullDayHours')} className={inputClass} />
         </Field>
       </div>
+      <p className="text-[11px] text-slate-400">Break policy (minimum/standard/maximum, paid, deduction mode) is configured on Attendance Rules.</p>
       <FormActions onCancel={onDone} isSubmitting={isPending} error={error ?? submitError} />
     </form>
   );

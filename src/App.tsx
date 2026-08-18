@@ -13,6 +13,8 @@ import EventRequestPage from '@/pages/attendance/EventRequestPage';
 import BalancePage from '@/pages/attendance/BalancePage';
 import InOutRecordsPage from '@/pages/attendance/InOutRecordsPage';
 import RawInOutRecordsPage from '@/pages/attendance/RawInOutRecordsPage';
+import MissingAttendancePage from '@/pages/attendance/MissingAttendancePage';
+import MonthlyAnalysisPage from '@/pages/attendance/MonthlyAnalysisPage';
 import HolidayListPage from '@/pages/attendance/HolidayListPage';
 import PendingApprovalsPage from '@/pages/manager/PendingApprovalsPage';
 import ManagerDashboardPage from '@/pages/manager/ManagerDashboardPage';
@@ -46,6 +48,11 @@ import DocumentsPage from '@/pages/admin/DocumentsPage';
 import PayrollPage from '@/pages/admin/PayrollPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
 import NotificationsPage from '@/pages/admin/NotificationsPage';
+import EmailTemplatesPage from '@/pages/admin/EmailTemplatesPage';
+import EmailDeliveryLogsPage from '@/pages/admin/EmailDeliveryLogsPage';
+import BiometricReadersPage from '@/pages/admin/BiometricReadersPage';
+import EmailConfigurationPage from '@/pages/admin/EmailConfigurationPage';
+import ReconciliationPage from '@/pages/admin/ReconciliationPage';
 import AuditLogsPage from '@/pages/admin/AuditLogsPage';
 import SystemSettingsPage from '@/pages/admin/SystemSettingsPage';
 import { businessRoutes } from '@/config/businessRoutes';
@@ -72,6 +79,8 @@ export default function App() {
                 <Route path="/attendance/balance" element={<BalancePage />} />
                 <Route path="/attendance/in-out-records" element={<InOutRecordsPage />} />
                 <Route path="/attendance/raw-in-out-records" element={<RawInOutRecordsPage />} />
+                <Route path="/attendance/missing-attendance" element={<MissingAttendancePage />} />
+                <Route path="/attendance/monthly-analysis" element={<MonthlyAnalysisPage />} />
                 <Route path="/attendance/holiday-list" element={<HolidayListPage />} />
                 <Route
                   path="/manager/dashboard"
@@ -250,6 +259,46 @@ export default function App() {
                   element={
                     <RequireRole roles={['hr_admin', 'super_admin']}>
                       <NotificationsPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/admin/email-templates"
+                  element={
+                    <RequireRole roles={['hr_admin', 'super_admin']}>
+                      <EmailTemplatesPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/admin/email-delivery-logs"
+                  element={
+                    <RequireRole roles={['hr_admin', 'super_admin']}>
+                      <EmailDeliveryLogsPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/admin/biometric-readers"
+                  element={
+                    <RequireRole roles={['hr_admin', 'super_admin']}>
+                      <BiometricReadersPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/admin/email-configuration"
+                  element={
+                    <RequireRole roles={['hr_admin', 'super_admin']}>
+                      <EmailConfigurationPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/admin/reconciliation"
+                  element={
+                    <RequireRole roles={['hr_admin', 'super_admin']}>
+                      <ReconciliationPage />
                     </RequireRole>
                   }
                 />

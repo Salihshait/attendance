@@ -14,6 +14,9 @@ export interface PermissionValidationInput {
   permissionDate: string;
   fromTime: string;
   toTime: string;
+  requestedMinutes: number;
+  /** Current month's balance in minutes. Callers pass 0 when no balance row exists yet — matches leaveValidation's `balance?.balance ?? 0` convention, not "unlimited". */
+  availableBalanceMinutes: number;
   existingRequests: ExistingPermissionRequest[];
 }
 
@@ -31,6 +34,12 @@ function timesOverlap(aFrom: string, aTo: string, bFrom: string, bTo: string): b
 export function validatePermissionRequest(input: PermissionValidationInput): PermissionValidationResult {
   const errors: string[] = [];
 
+  if (input.requestedMinutes > input.availableBalanceMinutes) {
+    errors.push(
+      `Insufficient permission balance: requested ${formatMinutes(input.requestedMinutes)}, only ${formatMinutes(input.availableBalanceMinutes)} available this month.`,
+    );
+  }
+
   const hasOverlap = input.existingRequests.some(
     (r) =>
       ACTIVE_STATUSES.has(r.status) &&
@@ -42,4 +51,12 @@ export function validatePermissionRequest(input: PermissionValidationInput): Per
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+function formatMinutes(totalMinutes: number): string {
+  const sign = totalMinutes < 0 ? '-' : '';
+  const abs = Math.abs(totalMinutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }

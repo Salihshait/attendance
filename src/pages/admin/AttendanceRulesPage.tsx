@@ -37,6 +37,12 @@ export default function AttendanceRulesPage() {
     { header: 'Early-Going Rule', accessorFn: (r) => (r.earlyGoingRuleEnabled ? 'Enabled' : 'Disabled'), id: 'earlyRule' },
     { header: 'Shortfall Rule', accessorFn: (r) => (r.shortfallRuleEnabled ? 'Enabled' : 'Disabled'), id: 'shortfallRule' },
     {
+      header: 'Break Policy',
+      id: 'breakPolicy',
+      accessorFn: (r) =>
+        `${r.minBreakMinutes}-${r.maxBreakMinutes}min, ${r.breakPaid ? 'paid' : 'unpaid'}, ${r.breakDeductionMode}`,
+    },
+    {
       header: 'Actions',
       id: 'actions',
       cell: ({ row }) => (
@@ -55,7 +61,10 @@ export default function AttendanceRulesPage() {
         <PageHeader title="Attendance Rules" />
 
         <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-4 py-2 text-[11px] text-amber-800">
-          <span>These toggles are configuration only — attendance computation does not read them yet.</span>
+          <span>
+            Break Policy is read by attendance computation. Weekoff/Overtime/Late/Early-Going/Shortfall toggles are configuration
+            only for now — attendance computation does not read them yet.
+          </span>
           <Link to="/admin/holidays" className="whitespace-nowrap font-semibold text-primary-600 hover:underline">
             Manage Holidays →
           </Link>
@@ -77,6 +86,11 @@ function AttendanceRulesModal({ shift, onClose }: { shift: AdminShiftRow; onClos
   const [lateRuleEnabled, setLateRuleEnabled] = useState(shift.lateRuleEnabled);
   const [earlyGoingRuleEnabled, setEarlyGoingRuleEnabled] = useState(shift.earlyGoingRuleEnabled);
   const [shortfallRuleEnabled, setShortfallRuleEnabled] = useState(shift.shortfallRuleEnabled);
+  const [minBreakMinutes, setMinBreakMinutes] = useState(String(shift.minBreakMinutes));
+  const [standardBreakMinutes, setStandardBreakMinutes] = useState(String(shift.standardBreakMinutes));
+  const [maxBreakMinutes, setMaxBreakMinutes] = useState(String(shift.maxBreakMinutes));
+  const [breakPaid, setBreakPaid] = useState(shift.breakPaid);
+  const [breakDeductionMode, setBreakDeductionMode] = useState(shift.breakDeductionMode);
   const [error, setError] = useState<string | null>(null);
 
   function toggleDay(day: number) {
@@ -95,6 +109,11 @@ function AttendanceRulesModal({ shift, onClose }: { shift: AdminShiftRow; onClos
           lateRuleEnabled,
           earlyGoingRuleEnabled,
           shortfallRuleEnabled,
+          minBreakMinutes: Number(minBreakMinutes),
+          standardBreakMinutes: Number(standardBreakMinutes),
+          maxBreakMinutes: Number(maxBreakMinutes),
+          breakPaid,
+          breakDeductionMode,
         },
       });
       onClose();
@@ -159,6 +178,60 @@ function AttendanceRulesModal({ shift, onClose }: { shift: AdminShiftRow; onClos
           <label className="flex items-center gap-1.5 text-slate-600">
             <input type="checkbox" checked={shortfallRuleEnabled} onChange={(e) => setShortfallRuleEnabled(e.target.checked)} /> Shortfall Rule
           </label>
+        </div>
+
+        <div className="space-y-2 border-t border-slate-100 pt-3">
+          <p className="text-[11px] font-semibold text-slate-500">Break Policy</p>
+          <p className="text-[11px] text-slate-400">
+            A gap shorter than the minimum isn't treated as a formal break (folded back into effective time). A gap longer than
+            the maximum is still fully excluded, but flagged for review.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-slate-500">Minimum Break (min)</span>
+              <input
+                type="number"
+                value={minBreakMinutes}
+                onChange={(e) => setMinBreakMinutes(e.target.value)}
+                className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:border-primary-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-slate-500">Standard Break (min)</span>
+              <input
+                type="number"
+                value={standardBreakMinutes}
+                onChange={(e) => setStandardBreakMinutes(e.target.value)}
+                className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:border-primary-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-slate-500">Maximum Break (min)</span>
+              <input
+                type="number"
+                value={maxBreakMinutes}
+                onChange={(e) => setMaxBreakMinutes(e.target.value)}
+                className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:border-primary-500"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-1.5 text-slate-600">
+              <input type="checkbox" checked={breakPaid} onChange={(e) => setBreakPaid(e.target.checked)} /> Paid Break
+              <span className="text-slate-400">(counts toward required hours)</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-slate-600">
+              Deduction:
+              <select
+                value={breakDeductionMode}
+                onChange={(e) => setBreakDeductionMode(e.target.value as 'actual' | 'standard')}
+                className="rounded border border-slate-300 px-2 py-1 text-xs outline-none focus:border-primary-500"
+              >
+                <option value="actual">Actual measured gap</option>
+                <option value="standard">Flat standard duration</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         <FormActions onCancel={onClose} isSubmitting={updateRules.isPending} error={error} submitLabel="Save Rules" submittingLabel="Saving…" />

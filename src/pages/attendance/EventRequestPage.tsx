@@ -12,16 +12,19 @@ import {
   useLeaveRequests,
   usePermissionRequests,
   useRegularizations,
+  useOndutyRequests,
   useCancelLeaveRequest,
   useCancelPermissionRequest,
   useCancelRegularization,
+  useCancelOndutyRequest,
+  type OndutyRequestRow,
 } from '@/hooks/useRequestQueries';
 import { formatDDMMYYYY, formatTime12h, formatHoursMinutes } from '@/lib/dateFormat';
 import { canCancel } from '@/lib/requestStatus';
 import type { LeaveRequestRow, PermissionRequestRow, RegularizationRow, RequestStatus } from '@/types/attendance';
 import { regularizationTypes } from '@/components/attendance/RegularizationForm';
 
-type EventKind = 'leave' | 'present' | 'permission';
+type EventKind = 'leave' | 'present' | 'permission' | 'wfh';
 
 const statusOptions = [
   { value: 'all', label: 'All' },
@@ -51,7 +54,11 @@ function downloadCsv(filename: string, csv: string) {
 export default function EventRequestPage() {
   const { authSession } = useAuth();
   const employeeId = authSession?.employee.id;
-  const selfName = authSession?.employee.displayName ?? '';
+  // "Entry By" is rendered as "Name [CODE]" throughout this page, matching
+  // the reference app's format exactly (e.g. "Bharath S [GG1661]").
+  const selfName = authSession
+    ? `${authSession.employee.displayName} [${authSession.employee.employeeCode}]`
+    : '';
 
   const [event, setEvent] = useState<EventKind>('leave');
   const [fromDate, setFromDate] = useState('');
@@ -62,10 +69,12 @@ export default function EventRequestPage() {
   const { data: leaveRequests } = useLeaveRequests(employeeId, selfName);
   const { data: permissionRequests } = usePermissionRequests(employeeId, selfName);
   const { data: regularizations } = useRegularizations(employeeId);
+  const { data: ondutyRequests } = useOndutyRequests(employeeId);
 
   const cancelLeave = useCancelLeaveRequest();
   const cancelPermission = useCancelPermissionRequest();
   const cancelRegularization = useCancelRegularization();
+  const cancelOnduty = useCancelOndutyRequest();
 
   const matchesDateAndStatus = useCallback(
     (dateStr: string, rowStatus: RequestStatus) => {
@@ -88,6 +97,10 @@ export default function EventRequestPage() {
   const filteredRegularization = useMemo(
     () => (regularizations ?? []).filter((r) => matchesDateAndStatus(r.attendanceDate, r.status)),
     [regularizations, matchesDateAndStatus],
+  );
+  const filteredWfh = useMemo(
+    () => (ondutyRequests ?? []).filter((r) => r.ondutyType === 'work_from_home' && matchesDateAndStatus(r.fromDate, r.status)),
+    [ondutyRequests, matchesDateAndStatus],
   );
 
   const leaveColumns: ColumnDef<LeaveRequestRow>[] = [
@@ -197,8 +210,46 @@ export default function EventRequestPage() {
     },
   ];
 
+  const wfhColumns: ColumnDef<OndutyRequestRow>[] = [
+    {
+      header: 'Date',
+      accessorFn: (r) => `${r.fromDate} ${r.toDate}`,
+      cell: ({ row }) => (
+        <span>
+          {formatDDMMYYYY(row.original.fromDate)}
+          {row.original.toDate !== row.original.fromDate ? ` - ${formatDDMMYYYY(row.original.toDate)}` : ''}
+        </span>
+      ),
+    },
+    { header: 'Location', accessorFn: (r) => r.location ?? '-', id: 'location' },
+    { header: 'Applied On', accessorFn: (r) => new Date(r.appliedOn).toLocaleString(), id: 'appliedOn' },
+    { header: 'Reason', accessorKey: 'reason' },
+    { header: 'Approval Remarks', accessorFn: (r) => r.approvalRemarks ?? '-', id: 'approvalRemarks' },
+    { header: 'Status', accessorKey: 'status', cell: ({ getValue }) => <StatusPill status={getValue<RequestStatus>()} /> },
+    {
+      header: 'Action',
+      id: 'action',
+      cell: ({ row }) => (
+        <ActionButtons
+          onView={() =>
+            setDetail({
+              Date: `${formatDDMMYYYY(row.original.fromDate)} - ${formatDDMMYYYY(row.original.toDate)}`,
+              Location: row.original.location ?? '-',
+              Reason: row.original.reason,
+              'Approval Remarks': row.original.approvalRemarks ?? '-',
+              Status: row.original.status,
+            })
+          }
+          cancellable={canCancel(row.original.status)}
+          onCancel={() => cancelOnduty.mutate({ id: row.original.id, employeeId: employeeId! })}
+        />
+      ),
+    },
+  ];
+
   function handleSave() {
-    const source = event === 'leave' ? filteredLeave : event === 'permission' ? filteredPermission : filteredRegularization;
+    const source =
+      event === 'leave' ? filteredLeave : event === 'permission' ? filteredPermission : event === 'wfh' ? filteredWfh : filteredRegularization;
     const rows = source.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? '')])));
     downloadCsv(`${event}-requests.csv`, toCsv(rows));
   }
@@ -235,6 +286,7 @@ export default function EventRequestPage() {
                 { value: 'leave', label: 'Leave' },
                 { value: 'present', label: 'Present' },
                 { value: 'permission', label: 'Permission' },
+                { value: 'wfh', label: 'Work From Home' },
               ]}
             />
           </FilterField>
@@ -266,6 +318,14 @@ export default function EventRequestPage() {
             data={filteredRegularization}
             searchPlaceholder="Search by Reason"
             emptyMessage="No present requests found."
+          />
+        )}
+        {event === 'wfh' && (
+          <DataTable
+            columns={wfhColumns}
+            data={filteredWfh}
+            searchPlaceholder="Search by Reason"
+            emptyMessage="No Work From Home requests found."
           />
         )}
       </div>

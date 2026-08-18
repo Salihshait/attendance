@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, ClipboardEdit, CalendarPlus, LogIn, Clock3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, ClipboardEdit, CalendarPlus, LogIn, Clock3, Home } from 'lucide-react';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { Modal } from '@/components/ui/Modal';
 import { AttendanceDayCell } from '@/components/attendance/AttendanceDayCell';
@@ -7,16 +7,18 @@ import { MonthlyDetailsPanel, type MonthlyDetailsData } from '@/components/atten
 import { LeaveRequestForm } from '@/components/attendance/LeaveRequestForm';
 import { PermissionRequestForm } from '@/components/attendance/PermissionRequestForm';
 import { RegularizationForm } from '@/components/attendance/RegularizationForm';
+import { WfhRequestForm } from '@/components/attendance/WfhRequestForm';
 import { useAuth } from '@/auth/useAuth';
 import { useAttendanceRange } from '@/hooks/useAttendanceQueries';
 import { useLeaveBalances, useOndutyRequests, usePermissionRequests, useRegularizations } from '@/hooks/useRequestQueries';
+import { findApplicableLeaveBalance } from '@/lib/leaveValidation';
 import { formatDateISO } from '@/lib/utils';
 import { formatHoursMinutes, formatMonthYear, getMonthGridDates } from '@/lib/dateFormat';
 import { useQueryClient } from '@tanstack/react-query';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-type ApplyKind = 'regularize' | 'leave' | 'present' | 'permission' | null;
+type ApplyKind = 'regularize' | 'leave' | 'present' | 'permission' | 'wfh' | null;
 
 export default function AttendanceCalendarPage() {
   const { authSession } = useAuth();
@@ -51,6 +53,7 @@ export default function AttendanceCalendarPage() {
     });
 
     const excessStay = monthRows.reduce((sum, r) => sum + r.excessStayMinutes, 0);
+    const excessStayDays = monthRows.filter((r) => r.excessStayMinutes > 0).length;
     const shortfall = monthRows.reduce((sum, r) => sum + r.shortfallMinutes, 0);
     const lateRows = monthRows.filter((r) => r.lateMinutes > 0);
     const earlyRows = monthRows.filter((r) => r.earlyGoingMinutes > 0);
@@ -71,13 +74,23 @@ export default function AttendanceCalendarPage() {
     const wfhCount = approvedOndutyThisYear.filter((r) => r.ondutyType === 'work_from_home').length;
     const onDutyCount = approvedOndutyThisYear.filter((r) => r.ondutyType === 'on_duty').length;
 
+    // CL/SL now have 12 monthly leave_balances rows (0042) — this panel
+    // shows one row per type for the currently-viewed month, not every
+    // period at once. Yearly/none-accrual types still have exactly one row,
+    // so findApplicableLeaveBalance resolves to it regardless of the date.
+    const monthReferenceDate = formatDateISO(monthStart);
+    const leaveTypeIds = Array.from(new Set((leaveBalances ?? []).map((b) => b.leaveTypeId)));
+    const monthLeaveBalances = leaveTypeIds
+      .map((id) => findApplicableLeaveBalance(leaveBalances ?? [], id, monthReferenceDate))
+      .filter((b): b is NonNullable<typeof b> => Boolean(b));
+
     return {
       shortfall: {
-        excessStay: formatHoursMinutes(excessStay),
+        excessStay: `${formatHoursMinutes(excessStay)} (${excessStayDays} ${excessStayDays === 1 ? 'day' : 'days'})`,
         shortfall: formatHoursMinutes(shortfall),
         difference: formatHoursMinutes(excessStay - shortfall),
       },
-      leaveBalances: leaveBalances ?? [],
+      leaveBalances: monthLeaveBalances,
       // No entitlement/balance concept exists for on-duty/WFH in the schema
       // (unlike leave types) — only `used` (approved-request count) is real.
       onduty: [
@@ -111,6 +124,7 @@ export default function AttendanceCalendarPage() {
       queryClient.invalidateQueries({ queryKey: ['permission-requests', employeeId] });
       queryClient.invalidateQueries({ queryKey: ['regularizations', employeeId] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances', employeeId] });
+      queryClient.invalidateQueries({ queryKey: ['onduty-requests', employeeId] });
     }
   }
 
@@ -209,6 +223,13 @@ export default function AttendanceCalendarPage() {
               >
                 <Clock3 className="h-3.5 w-3.5" /> Permission
               </button>
+              <button
+                type="button"
+                onClick={() => openApply('wfh')}
+                className="flex items-center gap-1.5 rounded bg-primary-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-600"
+              >
+                <Home className="h-3.5 w-3.5" /> Work From Home
+              </button>
             </div>
           </div>
 
@@ -237,6 +258,11 @@ export default function AttendanceCalendarPage() {
       {applyKind === 'permission' && (
         <Modal title="Apply Permission" onClose={closeApply}>
           <PermissionRequestForm defaultDate={applyDate} onDone={closeApply} />
+        </Modal>
+      )}
+      {applyKind === 'wfh' && (
+        <Modal title="Work From Home Request" onClose={closeApply}>
+          <WfhRequestForm defaultDate={applyDate} onDone={closeApply} />
         </Modal>
       )}
     </div>

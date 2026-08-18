@@ -76,6 +76,14 @@ export default function TeamAttendancePage() {
     [data, employeeFilter, departmentFilter, statusFilter, departmentByEmployee],
   );
 
+  const excessStaySummary = useMemo(() => {
+    const daysWithExcess = rows.filter((r) => r.excessStayMinutes > 0);
+    return {
+      totalMinutes: daysWithExcess.reduce((sum, r) => sum + r.excessStayMinutes, 0),
+      dayCount: daysWithExcess.length,
+    };
+  }, [rows]);
+
   const columns: ColumnDef<TeamAttendanceRow>[] = [
     { header: 'Employee', accessorKey: 'employeeName' },
     { header: 'Employee Code', accessorKey: 'employeeCode' },
@@ -89,6 +97,16 @@ export default function TeamAttendancePage() {
       header: 'Early Going',
       accessorFn: (r) => (r.earlyGoingMinutes > 0 ? formatHoursMinutes(r.earlyGoingMinutes) : '-'),
       id: 'earlyGoing',
+    },
+    {
+      header: 'Shortfall',
+      accessorFn: (r) => (r.shortfallMinutes > 0 ? formatHoursMinutes(r.shortfallMinutes) : '-'),
+      id: 'shortfall',
+    },
+    {
+      header: 'Excess Stay',
+      accessorFn: (r) => (r.excessStayMinutes > 0 ? formatHoursMinutes(r.excessStayMinutes) : '-'),
+      id: 'excessStay',
     },
     {
       header: 'Status',
@@ -130,6 +148,13 @@ export default function TeamAttendancePage() {
             <FilterSelect value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           </FilterField>
         </FilterBar>
+
+        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2 text-xs text-slate-600">
+          <span className="font-semibold text-status-approved">Excess Stay (this range):</span>
+          <span>{formatHoursMinutes(excessStaySummary.totalMinutes)}</span>
+          <span className="text-slate-400">·</span>
+          <span>{excessStaySummary.dayCount} {excessStaySummary.dayCount === 1 ? 'day' : 'days'}</span>
+        </div>
 
         <DataTable
           columns={columns}

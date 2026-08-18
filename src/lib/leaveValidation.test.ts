@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateLeaveRequest } from './leaveValidation';
+import { validateLeaveRequest, findApplicableLeaveBalance, totalLeaveBalance } from './leaveValidation';
 
 const WEEKOFF = [0, 6]; // Sun, Sat
 
@@ -80,5 +80,57 @@ describe('validateLeaveRequest', () => {
     );
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('findApplicableLeaveBalance', () => {
+  const monthlyRows = [
+    { leaveTypeId: 'CL', periodStart: '2026-07-01', periodEnd: '2026-07-31', label: 'July' },
+    { leaveTypeId: 'CL', periodStart: '2026-08-01', periodEnd: '2026-08-31', label: 'August' },
+    { leaveTypeId: 'CL', periodStart: '2026-09-01', periodEnd: '2026-09-30', label: 'September' },
+    { leaveTypeId: 'PL', periodStart: '2026-01-01', periodEnd: '2026-12-31', label: 'annual PL' },
+  ];
+
+  it('finds the monthly period row containing the given date', () => {
+    const result = findApplicableLeaveBalance(monthlyRows, 'CL', '2026-08-17');
+    expect(result?.label).toBe('August');
+  });
+
+  it('finds the single annual row for a yearly-accrual type regardless of date', () => {
+    const result = findApplicableLeaveBalance(monthlyRows, 'PL', '2026-03-01');
+    expect(result?.label).toBe('annual PL');
+  });
+
+  it('returns undefined when no period covers the date', () => {
+    const result = findApplicableLeaveBalance(monthlyRows, 'CL', '2027-01-01');
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined for a leave type with no rows at all', () => {
+    const result = findApplicableLeaveBalance(monthlyRows, 'SL', '2026-08-17');
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('totalLeaveBalance', () => {
+  const rows = [
+    { leaveTypeId: 'CL', periodStart: '2026-07-01', periodEnd: '2026-07-31', balance: 1 },
+    { leaveTypeId: 'CL', periodStart: '2026-08-01', periodEnd: '2026-08-31', balance: 0 },
+    { leaveTypeId: 'CL', periodStart: '2026-09-01', periodEnd: '2026-09-30', balance: 1 },
+    { leaveTypeId: 'PL', periodStart: '2026-01-01', periodEnd: '2026-12-31', balance: 18 },
+  ];
+
+  it('sums every period row for a monthly-accrual type, not just the current month', () => {
+    // August alone is exhausted (0), but July + September still have 1 each
+    // — a request shouldn't be blocked just because August's own slice is spent.
+    expect(totalLeaveBalance(rows, 'CL')).toBe(2);
+  });
+
+  it('matches the single row for a yearly-accrual type', () => {
+    expect(totalLeaveBalance(rows, 'PL')).toBe(18);
+  });
+
+  it('returns 0 for a leave type with no rows at all', () => {
+    expect(totalLeaveBalance(rows, 'LOP')).toBe(0);
   });
 });
