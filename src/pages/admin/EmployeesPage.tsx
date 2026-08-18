@@ -11,7 +11,14 @@ import { FilterBar, FilterField, FilterSelect } from '@/components/ui/FilterBar'
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge, type StatusKind } from '@/components/ui/StatusBadge';
 import { Field, FormActions, inputClass } from '@/components/admin/FormField';
-import { useAdminEmployeeList, useCreateEmployee, useUpdateEmployee, useDeactivateEmployee, useEmployeesForSelect } from '@/hooks/useAdminEmployees';
+import {
+  useAdminEmployeeList,
+  useCreateEmployee,
+  useUpdateEmployee,
+  useDeactivateEmployee,
+  useEmployeesForSelect,
+  useSetWebCheckinAccess,
+} from '@/hooks/useAdminEmployees';
 import { useDepartments, useDesignations, useLocations, useGrades } from '@/hooks/useAdminOrgStructure';
 import { formatDDMMYYYY } from '@/lib/dateFormat';
 import type { EmployeeInput } from '@/hooks/useAdminEmployees';
@@ -62,6 +69,7 @@ export default function EmployeesPage() {
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
   const deactivateEmployee = useDeactivateEmployee();
+  const setWebCheckinAccess = useSetWebCheckinAccess();
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -105,6 +113,22 @@ export default function EmployeesPage() {
       header: 'Status',
       id: 'status',
       cell: ({ row }) => <StatusBadge status={statusTone[row.original.employmentStatus]} label={statusLabels[row.original.employmentStatus]} />,
+    },
+    {
+      header: 'Web Check-in',
+      id: 'webCheckin',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          title="Toggle web check-in/out access for Work From Home days"
+          onClick={() => setWebCheckinAccess.mutate({ id: row.original.id, enabled: !row.original.webCheckinEnabled })}
+        >
+          <StatusBadge
+            status={row.original.webCheckinEnabled ? 'active' : 'inactive'}
+            label={row.original.webCheckinEnabled ? 'Enabled' : 'Disabled'}
+          />
+        </button>
+      ),
     },
     {
       header: 'Actions',

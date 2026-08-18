@@ -42,6 +42,8 @@
   --color-card-mss-dark: #23649e;
   --color-card-info: #8b7cc0;
   --color-card-info-dark: #7565ae;
+  --color-card-webcheckin: #2b8c86;
+  --color-card-webcheckin-dark: #22706b;
 
   /* Status colors */
   --color-status-present: #4caf50;

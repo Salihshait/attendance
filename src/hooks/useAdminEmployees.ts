@@ -9,7 +9,7 @@ type NameJoin = { name: string } | null;
 const EMPLOYEE_LIST_SELECT =
   'id, employee_code, first_name, middle_name, last_name, gender, date_of_birth, father_name, ' +
   'date_of_joining, date_of_leaving, official_email, official_mobile, paygroup, cost_centre, ' +
-  'place_of_tax_deduction, job_responsibility, employment_type, employment_status, user_id, ' +
+  'place_of_tax_deduction, job_responsibility, employment_type, employment_status, user_id, web_checkin_enabled, ' +
   'department_id, designation_id, location_id, grade_id, reporting_manager_id, ' +
   'department:departments!employees_department_id_fkey(name), designation:designations(name), location:locations(name), grade:grades(name)';
 
@@ -46,6 +46,7 @@ function mapEmployeeRow(r: any, managerNameById: Map<string, string>): AdminEmpl
     reportingManagerName: r.reporting_manager_id ? (managerNameById.get(r.reporting_manager_id) ?? '-') : null,
     userId: r.user_id,
     hasLogin: r.user_id !== null,
+    webCheckinEnabled: r.web_checkin_enabled,
   };
 }
 
@@ -178,6 +179,17 @@ export function useUpdateEmployee() {
       queryClient.invalidateQueries({ queryKey: ['admin-employees'] });
       queryClient.invalidateQueries({ queryKey: ['admin-employees-select'] });
     },
+  });
+}
+
+export function useSetWebCheckinAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const { error } = await supabase.from('employees').update({ web_checkin_enabled: enabled }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-employees'] }),
   });
 }
 

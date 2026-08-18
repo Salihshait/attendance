@@ -33,6 +33,7 @@ export interface AdminEmployeeRow {
   reportingManagerName: string | null;
   userId: string | null;
   hasLogin: boolean;
+  webCheckinEnabled: boolean;
 }
 
 export interface EmployeeOption {

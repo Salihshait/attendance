@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { dashboardCards } from '@/config/dashboardCards';
 import { ModuleCard } from '@/components/ui/ModuleCard';
+import { WebCheckinCard } from '@/components/attendance/WebCheckinCard';
 import { useAuth } from '@/auth/useAuth';
 
 export default function DashboardPage() {
@@ -19,6 +20,7 @@ export default function DashboardPage() {
           onToggle={() => setOpenKey((k) => (k === card.key ? null : card.key))}
         />
       ))}
+      <WebCheckinCard open={openKey === 'web-checkin'} onToggle={() => setOpenKey((k) => (k === 'web-checkin' ? null : 'web-checkin'))} />
     </div>
   );
 }
